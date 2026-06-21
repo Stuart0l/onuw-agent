@@ -22,6 +22,7 @@ def default_factory(client: LLMClient | None = None) -> AgentFactory:
             model=pcfg.model,
             temperature=pcfg.temperature,
             max_tokens=pcfg.max_tokens,
+            json_mode=pcfg.json_mode,
             client=shared,
         )
 

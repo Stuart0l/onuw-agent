@@ -21,18 +21,23 @@ players:
     model: gpt-4o
     persona: "A cautious librarian who hates being interrupted."
     temperature: 0.7
+    json_mode: true
   - id: p2
     name: Bob
     model: claude-opus-4-7
     persona: "A theatrical poker player. Bluffs constantly."
+    json_mode: true
   - id: p3
     name: Cara
     model: gpt-4o-mini
+    json_mode: true
   - id: p4
     name: Dan
     model: claude-sonnet-4-5
     persona: "Analytical, leans on probabilities."
+    json_mode: true
   - id: p5
     name: Eve
     model: gpt-4o
     persona: "Chaotic gremlin. Loves to accuse people."
+    json_mode: true

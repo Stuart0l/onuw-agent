@@ -101,8 +101,17 @@ async def test_system_prompt_is_passed_through():
     assert msgs[1]["content"] == "vote prompt"
 
 
-async def test_json_mode_flag_set_for_response_format():
+async def test_json_mode_true_sends_response_format():
+    client = FakeClient(['{"vote": "p2"}'])
+    agent = LLMAgent("p1", model="gpt-4o", client=client, json_mode=True)
+    await agent.vote("u")
+    assert client.calls[0]["response_format"] == {"type": "json_object"}
+
+
+async def test_json_mode_false_omits_response_format():
+    # Default mode: response_format is NOT sent. Required for cross-
+    # provider compatibility — LM Studio rejects {"type":"json_object"}.
     client = FakeClient(['{"vote": "p2"}'])
     agent = LLMAgent("p1", model="gpt-4o", client=client)
     await agent.vote("u")
-    assert client.calls[0]["response_format"] == {"type": "json_object"}
+    assert "response_format" not in client.calls[0]

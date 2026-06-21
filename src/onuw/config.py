@@ -12,6 +12,11 @@ class PlayerConfig(BaseModel):
     persona: str | None = None
     temperature: float = 0.7
     max_tokens: int = 800
+    # Enable response_format={"type":"json_object"} at the API level.
+    # Default off: OpenAI / Anthropic support it (set to true for stronger
+    # output guarantees) but LM Studio and many self-hosted servers
+    # reject it. The tolerant parser in utils.json_parse covers both.
+    json_mode: bool = False
 
 
 class GameConfig(BaseModel):

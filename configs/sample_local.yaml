@@ -1,0 +1,52 @@
+# Local LM Studio config: all 5 players run on one local Gemma model.
+#
+# Before running:
+#   export OPENAI_API_KEY=lm-studio                       # any non-empty string
+#   export OPENAI_API_BASE=http://localhost:1234/v1       # LM Studio's default
+#
+# Then:
+#   uv run python -m onuw run --config configs/sample_local.yaml --god
+#
+# LM Studio serves requests serially, so the parallel-vote phase will queue
+# up; that is expected and harmless, just slower than a hosted API.
+
+discussion_rounds: 3
+seed: 32
+log_dir: logs
+console: true
+
+role_pool:
+  - werewolf
+  - werewolf
+  - seer
+  - robber
+  - troublemaker
+  - mason
+  - mason
+  - minion
+
+players:
+  - id: p1
+    name: Alice
+    model: openai/gemma-4-e2b-it
+    persona: "A cautious librarian who hates being interrupted."
+    temperature: 0.7
+  - id: p2
+    name: Bob
+    model: openai/gemma-4-e2b-it
+    persona: "A theatrical poker player. Bluffs constantly."
+    temperature: 0.7
+  - id: p3
+    name: Cara
+    model: openai/gemma-4-e2b-it
+    temperature: 0.7
+  - id: p4
+    name: Dan
+    model: openai/gemma-4-e2b-it
+    persona: "Analytical, leans on probabilities."
+    temperature: 0.7
+  - id: p5
+    name: Eve
+    model: openai/gemma-4-e2b-it
+    persona: "Chaotic gremlin. Loves to accuse people."
+    temperature: 0.7

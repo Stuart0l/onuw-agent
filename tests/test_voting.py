@@ -4,11 +4,7 @@ from onuw.agents.scripted_agent import ScriptedAgent
 from onuw.engine.vote import run_vote
 from onuw.events.bus import EventBus
 from onuw.memory import PlayerMemory
-from onuw.prompts.rules import (
-    GAME_RULES_BLOCK,
-    ROLE_ABILITY_BLOCKS,
-    WIN_CONDITIONS_BLOCK,
-)
+from onuw.prompts.rules import team_summary
 from onuw.state import CenterCard, GameState, PlayerState
 from onuw.types import Role
 
@@ -28,9 +24,7 @@ def _build(player_roles):
         seat_order.append(pid)
         memories[pid] = PlayerMemory(
             player_id=pid, seat=i, name=pid.upper(), persona=None,
-            rules_text=GAME_RULES_BLOCK,
-            role_ability_text=ROLE_ABILITY_BLOCKS[role],
-            win_conditions_text=WIN_CONDITIONS_BLOCK,
+            team_summary=team_summary(role),
             assigned_role=role,
         )
     state = GameState(

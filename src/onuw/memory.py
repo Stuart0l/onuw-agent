@@ -18,9 +18,7 @@ class PlayerMemory:
     seat: int
     name: str
     persona: str | None
-    rules_text: str
-    role_ability_text: str
-    win_conditions_text: str
+    team_summary: str
     assigned_role: Role
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
@@ -38,28 +36,23 @@ class PlayerMemory:
         return "\n\n".join(
             [
                 self._identity_section(),
-                self._role_ability_section(),
-                self._win_conditions_section(),
+                self._team_section(),
                 self._observations_section(),
                 self._discussion_section(),
             ]
         )
 
     def _identity_section(self) -> str:
-        lines = [
-            "== YOUR IDENTITY ==",
+        # Persona is intentionally omitted here — it lives in the system
+        # prompt's "== YOUR PERSONA ==" block, built once at setup.
+        return (
+            "== YOUR IDENTITY ==\n"
             f"You are {self.name} (seat {self.seat}, id {self.player_id}). "
-            f"Your dealt role at the start of the night was: {self.assigned_role.value}.",
-        ]
-        if self.persona:
-            lines.append(f"Persona: {self.persona}")
-        return "\n".join(lines)
+            f"Your dealt role at the start of the night was: {self.assigned_role.value}."
+        )
 
-    def _role_ability_section(self) -> str:
-        return "== ROLE ABILITY (your dealt role) ==\n" + self.role_ability_text
-
-    def _win_conditions_section(self) -> str:
-        return "== WIN CONDITIONS (all teams) ==\n" + self.win_conditions_text
+    def _team_section(self) -> str:
+        return "== YOUR TEAM ==\n" + self.team_summary
 
     def _observations_section(self) -> str:
         header = "== WHAT YOU LEARNED DURING THE NIGHT =="

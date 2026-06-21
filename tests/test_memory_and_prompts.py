@@ -1,11 +1,13 @@
 from onuw.memory import PlayerMemory
+from onuw.prompts.day import build_day_speech_task
 from onuw.prompts.rules import (
-    GAME_RULES_BLOCK,
     OUTPUT_FORMAT_PREAMBLE,
     ROLE_ABILITY_BLOCKS,
-    WIN_CONDITIONS_BLOCK,
+    SWAP_REMINDER,
+    team_summary,
 )
 from onuw.prompts.system import build_system_prompt
+from onuw.prompts.vote import build_vote_task
 from onuw.state import PlayerState, Speech
 from onuw.types import Role
 
@@ -26,9 +28,7 @@ def _memory(role: Role = Role.SEER, persona: str | None = None) -> PlayerMemory:
         seat=1,
         name="Alice",
         persona=persona,
-        rules_text=GAME_RULES_BLOCK,
-        role_ability_text=ROLE_ABILITY_BLOCKS[role],
-        win_conditions_text=WIN_CONDITIONS_BLOCK,
+        team_summary=team_summary(role),
         assigned_role=role,
     )
 
@@ -39,18 +39,27 @@ def test_role_ability_blocks_cover_all_roles():
         assert ROLE_ABILITY_BLOCKS[r].strip()
 
 
-def test_to_prompt_context_has_all_sections_when_empty():
+def test_to_prompt_context_has_expected_sections_when_empty():
     out = _memory().to_prompt_context("night")
     for header in [
         "== YOUR IDENTITY ==",
-        "== ROLE ABILITY (your dealt role) ==",
-        "== WIN CONDITIONS (all teams) ==",
+        "== YOUR TEAM ==",
         "== WHAT YOU LEARNED DURING THE NIGHT ==",
         "== PUBLIC DISCUSSION SO FAR ==",
     ]:
         assert header in out
     assert "Nothing." in out
     assert "No discussion yet." in out
+
+
+def test_to_prompt_context_omits_sections_now_in_system_prompt():
+    # Role ability, all-teams win conditions, and persona are in the
+    # system prompt; the user prompt must not duplicate them.
+    out = _memory(persona="A cautious librarian.").to_prompt_context("night")
+    assert "== ROLE ABILITY" not in out
+    assert "== WIN CONDITIONS (all teams) ==" not in out
+    assert "Persona:" not in out
+    assert "A cautious librarian." not in out
 
 
 def test_observation_renders_into_what_you_learned_section():
@@ -103,3 +112,43 @@ def test_system_prompt_contains_required_layers():
     assert "GAME RULES" in out
     assert "WIN CONDITIONS" in out
     assert OUTPUT_FORMAT_PREAMBLE in out
+
+
+# ----- team_summary -----
+
+def test_team_summary_werewolf_and_minion_are_werewolf_team():
+    assert "WEREWOLF team" in team_summary(Role.WEREWOLF)
+    assert "WEREWOLF team" in team_summary(Role.MINION)
+
+
+def test_team_summary_village_roles_say_village_team():
+    for r in (Role.VILLAGER, Role.MASON, Role.SEER, Role.INSOMNIAC,
+              Role.HUNTER, Role.TROUBLEMAKER):
+        assert "VILLAGE team" in team_summary(r), r
+
+
+def test_team_summary_tanner_is_solo_team():
+    assert "TANNER" in team_summary(Role.TANNER)
+
+
+def test_team_summary_robber_signposts_team_change_from_steal():
+    out = team_summary(Role.ROBBER)
+    assert "stolen role" in out or "stolen" in out
+    assert "night observation" in out
+
+
+def test_team_summary_drunk_signposts_unknown_team():
+    out = team_summary(Role.DRUNK)
+    assert "UNKNOWN" in out
+
+
+# ----- swap reminder -----
+
+def test_day_task_includes_swap_reminder():
+    assert SWAP_REMINDER in build_day_speech_task(0, 3, max_chars=600)
+    assert "NIGHT SWAPS" in build_day_speech_task(0, 3, max_chars=600)
+
+
+def test_vote_task_includes_swap_reminder():
+    assert SWAP_REMINDER in build_vote_task(["p1", "p2", "p3"])
+    assert "NIGHT SWAPS" in build_vote_task(["p1", "p2", "p3"])

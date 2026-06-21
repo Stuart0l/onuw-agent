@@ -71,3 +71,52 @@ You have no night action. You are a one-player team. You WIN if and only if you 
     Role.HUNTER: """== YOUR ROLE: HUNTER ==
 You have no night action. You are on the village team. If you are killed during the vote, the player you voted for ALSO dies. Telegraphing this can deter opponents from voting for you.""",
 }
+
+
+def team_summary(role: Role) -> str:
+    """One-liner team / win-condition reminder for the user prompt.
+
+    The full all-teams win conditions live in the system prompt; this
+    summary is the only team-affiliation content the user prompt needs
+    to carry per turn.
+    """
+    if role == Role.WEREWOLF:
+        return (
+            "You are on the WEREWOLF team. Win condition: at least one Werewolf "
+            "must exist in play AND no Werewolf may be killed."
+        )
+    if role == Role.MINION:
+        return (
+            "You are on the WEREWOLF team (Minion). Win: no Werewolf dies — you "
+            "may die yourself. Special: if all Werewolves are in the center, "
+            "you win iff no non-Minion player dies."
+        )
+    if role == Role.TANNER:
+        return (
+            "You are the TANNER — a one-player team. Win condition: YOU must be "
+            "killed during the vote."
+        )
+    if role == Role.ROBBER:
+        return (
+            "You started on the VILLAGE team. If you robbed a card during the "
+            "night, your CURRENT role is now that stolen role and your team "
+            "becomes that role's team — see your night observation."
+        )
+    if role == Role.DRUNK:
+        return (
+            "You started on the VILLAGE team. You swapped with an unknown center "
+            "card; your CURRENT role and team at end of night are UNKNOWN to you "
+            "until reveal."
+        )
+    # Village team: Villager, Mason, Seer, Troublemaker, Insomniac, Hunter.
+    # Note: Troublemaker is village — only swaps OTHER players' cards; its own
+    # card stays Troublemaker, so its current_role and team never change.
+    return (
+        "You are on the VILLAGE team. Win condition: at least one Werewolf must "
+        "die during the vote. Special: if no Werewolves are in play, the village "
+        "wins iff no one dies."
+    )
+
+
+SWAP_REMINDER = """== REMINDER: NIGHT SWAPS ==
+Any player's card may have been swapped during the night by a Robber, Troublemaker, or Drunk. Your dealt role above is your ORIGINAL role — your CURRENT role at end of night may differ. Reason carefully about this when forming claims, accusations, and votes."""

@@ -11,11 +11,7 @@ from ..events.bus import (
     RoleAssignedEvent,
 )
 from ..memory import PlayerMemory
-from ..prompts.rules import (
-    GAME_RULES_BLOCK,
-    ROLE_ABILITY_BLOCKS,
-    WIN_CONDITIONS_BLOCK,
-)
+from ..prompts.rules import team_summary
 from ..prompts.system import build_system_prompt
 from ..state import CenterCard, GameState, PlayerState
 
@@ -59,9 +55,7 @@ def deal(
             seat=i,
             name=pcfg.name,
             persona=pcfg.persona,
-            rules_text=GAME_RULES_BLOCK,
-            role_ability_text=ROLE_ABILITY_BLOCKS[role],
-            win_conditions_text=WIN_CONDITIONS_BLOCK,
+            team_summary=team_summary(role),
             assigned_role=role,
         )
         agent = agent_factory(pcfg)

@@ -1,8 +1,10 @@
 from ..memory import PlayerMemory
+from .rules import SWAP_REMINDER
 
 
 def build_vote_task(valid_targets: list[str]) -> str:
     return (
+        SWAP_REMINDER + "\n\n"
         "== VOTING PHASE ==\n"
         "Cast your vote for the player you believe should be killed. Votes are "
         "simultaneous; you will not see others' votes until all are revealed.\n"

@@ -1,4 +1,5 @@
 import json
+import warnings
 from typing import Any
 
 from ..llm.client import LLMClient
@@ -45,9 +46,12 @@ class LLMAgent(Agent):
         return self.player_id
 
     async def _ask_json(self, user_prompt: str) -> Any | None:
-        """Send a JSON-mode completion; one retry with a strict reminder
-        if the first response is unparseable. Returns the parsed value
-        or None if both attempts fail."""
+        """Send a completion; one retry with a strict reminder if the
+        first response is unparseable. Returns the parsed value or None
+        if both attempts fail. Emits a UserWarning carrying both raw
+        responses when the fallback fires, so a misbehaving model is
+        visible without spamming the console on every successful call.
+        """
         raw = await self._complete(user_prompt)
         parsed = _try_parse(raw)
         if parsed is not None:
@@ -59,7 +63,15 @@ class LLMAgent(Agent):
             "— no prose, no markdown fences."
         )
         raw2 = await self._complete(retry_prompt)
-        return _try_parse(raw2)
+        parsed2 = _try_parse(raw2)
+        if parsed2 is None:
+            warnings.warn(
+                f"[{self.player_id}] JSON parse failed after retry; "
+                f"falling back to defaults. raw#1={raw!r} raw#2={raw2!r}",
+                UserWarning,
+                stacklevel=2,
+            )
+        return parsed2
 
     async def _complete(self, user_prompt: str) -> str:
         return await self.client.complete(

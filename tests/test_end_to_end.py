@@ -68,6 +68,11 @@ async def test_full_scripted_game_produces_winners_and_json_log(tmp_path: Path):
     types = [e["type"] for e in data["events"]]
     assert types[0] == "GameStartEvent"
     assert types[-1] == "GameEndEvent"
+    end_evt = data["events"][-1]
+    usage = end_evt["final_state"]["token_usage"]
+    assert set(usage["per_player"].keys()) == {p.id for p in cfg.players}
+    # Scripted agents make no LLM calls, so totals are zero.
+    assert usage["total"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     # Speeches: 5 players * 2 rounds = 10
     assert sum(1 for t in types if t == "SpeechEvent") == 10
     assert sum(1 for t in types if t == "RoleAssignedEvent") == 5

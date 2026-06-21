@@ -1,10 +1,11 @@
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from ..agents import AgentFactory
 from ..agents.base import Agent
 from ..config import GameConfig
 from ..events.bus import EventBus, GameEndEvent
+from ..llm import TokenUsage
 from ..memory import PlayerMemory
 from ..state import GameState
 from ..types import Team
@@ -52,7 +53,7 @@ class GameEngine:
             self.bus.emit(
                 GameEndEvent(
                     winners=list(winners),
-                    final_state=self._final_state(state),
+                    final_state=self._final_state(state, agents),
                 )
             )
             return GameResult(
@@ -63,7 +64,13 @@ class GameEngine:
                 await agent.aclose()
 
     @staticmethod
-    def _final_state(state: GameState) -> dict:
+    def _final_state(state: GameState, agents: dict[str, Agent]) -> dict:
+        per_player_usage = {
+            pid: asdict(agent.token_usage) for pid, agent in agents.items()
+        }
+        total = TokenUsage()
+        for agent in agents.values():
+            total += agent.token_usage
         return {
             "players": {
                 pid: {
@@ -77,4 +84,8 @@ class GameEngine:
             "deaths": list(state.deaths),
             "votes": dict(state.votes),
             "winners": [w.value for w in state.winners],
+            "token_usage": {
+                "per_player": per_player_usage,
+                "total": asdict(total),
+            },
         }

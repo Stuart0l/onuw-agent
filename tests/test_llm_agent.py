@@ -132,3 +132,56 @@ async def test_extra_body_is_omitted_by_default():
     agent = LLMAgent("p1", model="x", client=client)
     await agent.vote("u")
     assert "extra_body" not in client.calls[0]
+
+
+# ----- token usage -----
+
+class _FakeUsage:
+    def __init__(self, prompt: int, completion: int):
+        self.prompt_tokens = prompt
+        self.completion_tokens = completion
+        self.total_tokens = prompt + completion
+
+
+class _FakeRespWithUsage(_FakeResp):
+    def __init__(self, text: str, prompt: int = 0, completion: int = 0):
+        super().__init__(text)
+        self.usage = _FakeUsage(prompt, completion)
+
+
+class FakeClientWithUsage(LLMClient):
+    def __init__(self, responses):
+        super().__init__(max_retries=0)
+        self._responses = list(responses)
+
+    async def _acompletion(self, kwargs):
+        return self._responses.pop(0) if self._responses else _FakeResp("")
+
+
+async def test_token_usage_accumulates_across_calls():
+    client = FakeClientWithUsage([
+        _FakeRespWithUsage('{"vote": "p2"}', prompt=100, completion=20),
+        _FakeRespWithUsage('{"speech": "hi"}', prompt=150, completion=30),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    await agent.vote("u1")
+    await agent.speak(0, "u2")
+    assert agent.token_usage.prompt_tokens == 250
+    assert agent.token_usage.completion_tokens == 50
+    assert agent.token_usage.total_tokens == 300
+
+
+async def test_token_usage_stays_zero_when_response_has_no_usage_field():
+    client = FakeClient(['{"vote": "p2"}'])
+    agent = LLMAgent("p1", model="x", client=client)
+    await agent.vote("u")
+    assert agent.token_usage.prompt_tokens == 0
+    assert agent.token_usage.completion_tokens == 0
+    assert agent.token_usage.total_tokens == 0
+
+
+async def test_scripted_agent_has_zero_token_usage():
+    from onuw.agents.scripted_agent import ScriptedAgent
+    s = ScriptedAgent("p1", vote="p2")
+    await s.vote("u")
+    assert s.token_usage.total_tokens == 0

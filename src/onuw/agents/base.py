@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from ..llm import TokenUsage
 from ..memory import PlayerMemory
 
 
@@ -23,6 +24,9 @@ class Agent(ABC):
         self.player_id = player_id
         self.system_prompt: str = ""
         self.memory: PlayerMemory | None = None
+        # Accumulates token usage across all LLM calls this agent makes
+        # during a single game. Engine sums these at game end.
+        self.token_usage: TokenUsage = TokenUsage()
 
     def bind(self, system_prompt: str, memory: PlayerMemory) -> None:
         """Engine-supplied context. Custom agents are free to read

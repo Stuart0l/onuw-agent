@@ -2,6 +2,8 @@ import asyncio
 import random
 from typing import Any
 
+from . import TokenUsage
+
 
 class LLMClient:
     """Async wrapper around ``litellm.acompletion`` with exponential
@@ -33,7 +35,7 @@ class LLMClient:
         max_tokens: int = 800,
         json_mode: bool = False,
         extra_body: dict | None = None,
-    ) -> str:
+    ) -> tuple[str, TokenUsage]:
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": [
@@ -53,14 +55,14 @@ class LLMClient:
             # Forwarded verbatim into the upstream request body — escape
             # hatch for provider-specific fields like MiniMax `thinking`.
             kwargs["extra_body"] = extra_body
-        return await self._call_with_backoff(kwargs)
+        resp = await self._call_with_backoff(kwargs)
+        return self._extract_content(resp), TokenUsage.from_response(resp)
 
-    async def _call_with_backoff(self, kwargs: dict) -> str:
+    async def _call_with_backoff(self, kwargs: dict) -> Any:
         attempt = 0
         while True:
             try:
-                resp = await self._acompletion(kwargs)
-                return self._extract_content(resp)
+                return await self._acompletion(kwargs)
             except Exception as exc:  # noqa: BLE001
                 if not self._is_retryable(exc) or attempt >= self.max_retries:
                     raise

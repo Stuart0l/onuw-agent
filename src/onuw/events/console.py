@@ -79,6 +79,20 @@ class ConsoleObserver(Observer):
         elif isinstance(event, GameEndEvent):
             self.console.rule("[bold green]Game Over[/bold green]")
             self.console.print(f"Winners: {[w.value for w in event.winners]}")
+            usage = (event.final_state or {}).get("token_usage")
+            if usage:
+                total = usage.get("total", {})
+                self.console.print(
+                    f"[bold]Tokens:[/bold] total={total.get('total_tokens', 0)} "
+                    f"(prompt={total.get('prompt_tokens', 0)}, "
+                    f"completion={total.get('completion_tokens', 0)})"
+                )
+                for pid, u in usage.get("per_player", {}).items():
+                    self.console.print(
+                        f"  {pid}: {u.get('total_tokens', 0)} "
+                        f"(p={u.get('prompt_tokens', 0)}, "
+                        f"c={u.get('completion_tokens', 0)})"
+                    )
             self.console.print(f"Final state: {event.final_state}")
         else:
             self.console.print(f"{type(event).__name__}: {event}")

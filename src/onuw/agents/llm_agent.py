@@ -76,7 +76,7 @@ class LLMAgent(Agent):
         return parsed2
 
     async def _complete(self, user_prompt: str) -> str:
-        return await self.client.complete(
+        content, usage = await self.client.complete(
             system=self.system_prompt,
             user=user_prompt,
             model=self.model,
@@ -85,6 +85,8 @@ class LLMAgent(Agent):
             json_mode=self.json_mode,
             extra_body=self.extra_body,
         )
+        self.token_usage += usage
+        return content
 
 
 def _try_parse(raw: str) -> Any | None:

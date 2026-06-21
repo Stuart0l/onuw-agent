@@ -13,7 +13,7 @@
 #   into a separate response field and only writes the final answer into
 #   `content` after thinking finishes. With a small max_tokens budget the
 #   model spends everything on thinking and `content` comes back empty
-#   (just trailing newlines). max_tokens here is bumped to 16384 to leave
+#   (just trailing newlines). max_tokens here is bumped to 8192 to leave
 #   room for both reasoning and the final JSON answer.
 # - json_mode is left at the default (false). If MiniMax-M3 accepts
 #   response_format={"type":"json_object"}, you can set json_mode: true
@@ -46,7 +46,7 @@ players:
     model: openai/MiniMax-M3
     persona: "A cautious librarian who hates being interrupted."
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 8192
     extra_body:
       thinking:
         type: disabled
@@ -55,7 +55,7 @@ players:
     model: openai/MiniMax-M3
     persona: "A theatrical poker player. Bluffs constantly."
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 8192
     extra_body:
       thinking:
         type: disabled
@@ -63,7 +63,7 @@ players:
     name: Cara
     model: openai/MiniMax-M3
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 8192
     extra_body:
       thinking:
         type: disabled
@@ -72,7 +72,7 @@ players:
     model: openai/MiniMax-M3
     persona: "Analytical, leans on probabilities."
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 8192
     extra_body:
       thinking:
         type: disabled
@@ -81,7 +81,7 @@ players:
     model: openai/MiniMax-M3
     persona: "Chaotic gremlin. Loves to accuse people."
     temperature: 0.7
-    max_tokens: 16384
+    max_tokens: 8192
     extra_body:
       thinking:
         type: disabled

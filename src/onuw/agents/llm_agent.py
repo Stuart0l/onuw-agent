@@ -18,6 +18,7 @@ class LLMAgent(Agent):
         temperature: float = 0.7,
         max_tokens: int = 800,
         json_mode: bool = False,
+        extra_body: dict | None = None,
         client: LLMClient | None = None,
     ) -> None:
         super().__init__(player_id)
@@ -25,6 +26,7 @@ class LLMAgent(Agent):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.json_mode = json_mode
+        self.extra_body = extra_body or None
         self.client = client or LLMClient()
 
     async def act_night(self, action_key: str, user_prompt: str) -> dict:
@@ -81,6 +83,7 @@ class LLMAgent(Agent):
             temperature=self.temperature,
             max_tokens=self.max_tokens,
             json_mode=self.json_mode,
+            extra_body=self.extra_body,
         )
 
 

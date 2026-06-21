@@ -17,6 +17,11 @@ class PlayerConfig(BaseModel):
     # output guarantees) but LM Studio and many self-hosted servers
     # reject it. The tolerant parser in utils.json_parse covers both.
     json_mode: bool = False
+    # Provider-specific extra body params forwarded verbatim into the
+    # chat completions request body. Example use: cap MiniMax-M3's
+    # reasoning budget via {"thinking": {"type": "adaptive",
+    # "max_tokens": 1024}}.
+    extra_body: dict = Field(default_factory=dict)
 
 
 class GameConfig(BaseModel):

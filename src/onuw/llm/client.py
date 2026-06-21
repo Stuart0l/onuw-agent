@@ -32,6 +32,7 @@ class LLMClient:
         temperature: float | None = None,
         max_tokens: int = 800,
         json_mode: bool = False,
+        extra_body: dict | None = None,
     ) -> str:
         kwargs: dict[str, Any] = {
             "model": model,
@@ -48,6 +49,10 @@ class LLMClient:
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
+        if extra_body:
+            # Forwarded verbatim into the upstream request body — escape
+            # hatch for provider-specific fields like MiniMax `thinking`.
+            kwargs["extra_body"] = extra_body
         return await self._call_with_backoff(kwargs)
 
     async def _call_with_backoff(self, kwargs: dict) -> str:

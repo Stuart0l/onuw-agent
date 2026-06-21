@@ -115,3 +115,20 @@ async def test_json_mode_false_omits_response_format():
     agent = LLMAgent("p1", model="gpt-4o", client=client)
     await agent.vote("u")
     assert "response_format" not in client.calls[0]
+
+
+async def test_extra_body_is_forwarded_when_set():
+    client = FakeClient(['{"vote": "p2"}'])
+    agent = LLMAgent(
+        "p1", model="x", client=client,
+        extra_body={"thinking": {"type": "disabled"}},
+    )
+    await agent.vote("u")
+    assert client.calls[0]["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+async def test_extra_body_is_omitted_by_default():
+    client = FakeClient(['{"vote": "p2"}'])
+    agent = LLMAgent("p1", model="x", client=client)
+    await agent.vote("u")
+    assert "extra_body" not in client.calls[0]

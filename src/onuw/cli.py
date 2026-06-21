@@ -3,6 +3,7 @@ import asyncio
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 
 from .agents import default_factory
 from .config import GameConfig
@@ -14,6 +15,9 @@ from .llm.client import LLMClient
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Load .env from the current working directory (if present) so users
+    # can keep OPENAI_API_KEY / OPENAI_API_BASE / etc. out of their shell.
+    load_dotenv()
     parser = argparse.ArgumentParser(prog="onuw")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

@@ -4,8 +4,6 @@ from ..memory import PlayerMemory
 from ..prompts.day import build_day_speech_prompt
 from ..state import GameState, Speech
 
-MAX_SPEECH_CHARS = 600
-
 
 async def run_day(
     state: GameState,
@@ -16,15 +14,16 @@ async def run_day(
     """Strict round-robin: each player produces one statement per round,
     in seat order. Later speakers in the same round see earlier speakers.
     """
+    cap = state.max_speech_chars
     for r in range(state.discussion_rounds):
         for pid in state.seat_order:
             prompt = build_day_speech_prompt(
-                memories[pid], r, state.discussion_rounds
+                memories[pid], r, state.discussion_rounds, cap
             )
             raw = await agents[pid].speak(r, prompt)
             text = (raw or "I have nothing to add.").strip()
-            if len(text) > MAX_SPEECH_CHARS:
-                text = text[:MAX_SPEECH_CHARS]
+            if len(text) > cap:
+                text = text[:cap]
             speech = Speech(round_idx=r, speaker_id=pid, text=text)
             state.speeches.append(speech)
             for mem in memories.values():

@@ -9,3 +9,5 @@ __pycache__/
 logs/
 .DS_Store
 uv.lock.tmp
+.env
+.env.local

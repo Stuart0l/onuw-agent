@@ -23,6 +23,7 @@ class GameConfig(BaseModel):
     players: list[PlayerConfig] = Field(min_length=3, max_length=10)
     role_pool: list[Role]
     discussion_rounds: int = 3
+    max_speech_chars: int = 600
     seed: int | None = None
     log_dir: Path = Path("logs")
     console: bool = True

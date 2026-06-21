@@ -33,6 +33,7 @@ class GameState:
     seat_order: list[str]
     center: list[CenterCard]
     discussion_rounds: int
+    max_speech_chars: int = 600
     speeches: list[Speech] = field(default_factory=list)
     votes: dict[str, str] = field(default_factory=dict)
     deaths: list[str] = field(default_factory=list)

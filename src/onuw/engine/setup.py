@@ -78,6 +78,7 @@ def deal(
         seat_order=seat_order,
         center=center,
         discussion_rounds=cfg.discussion_rounds,
+        max_speech_chars=cfg.max_speech_chars,
         rng=rng,
     )
 

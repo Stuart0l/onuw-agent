@@ -85,6 +85,13 @@ class DeathsEvent(Event):
 
 
 @dataclass(frozen=True)
+class ReasoningEvent(Event):
+    player_id: str
+    text: str
+    visibility: ClassVar[Visibility] = "private"
+
+
+@dataclass(frozen=True)
 class GameEndEvent(Event):
     winners: list[Team]
     final_state: dict

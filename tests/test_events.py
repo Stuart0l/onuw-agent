@@ -13,6 +13,7 @@ from onuw.events.bus import (
     GameStartEvent,
     NightActionEvent,
     NightWakeEvent,
+    ReasoningEvent,
     RoleAssignedEvent,
     SpeechEvent,
     StateMutationEvent,
@@ -34,6 +35,7 @@ CONCRETE_EVENTS = [
     SpeechEvent,
     VotesRevealedEvent,
     DeathsEvent,
+    ReasoningEvent,
     GameEndEvent,
 ]
 

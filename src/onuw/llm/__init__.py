@@ -1,5 +1,19 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass
+class LLMResult:
+    """One complete call's worth of usable signal from the LLM.
+
+    ``reasoning`` carries the chain-of-thought from reasoning models
+    (e.g. MiniMax-M3's ``reasoning_content`` field) — empty string for
+    non-reasoning models.
+    """
+
+    content: str
+    usage: "TokenUsage"
+    reasoning: str = ""
 
 
 @dataclass
@@ -31,4 +45,4 @@ class TokenUsage:
         )
 
 
-__all__ = ["TokenUsage"]
+__all__ = ["LLMResult", "TokenUsage"]

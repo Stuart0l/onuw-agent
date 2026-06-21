@@ -185,3 +185,96 @@ async def test_scripted_agent_has_zero_token_usage():
     s = ScriptedAgent("p1", vote="p2")
     await s.vote("u")
     assert s.token_usage.total_tokens == 0
+
+
+# ----- reasoning content -----
+
+class _FakeMessageWithReasoning:
+    def __init__(self, content: str, reasoning_content: str = "", reasoning: str = ""):
+        self.content = content
+        if reasoning_content:
+            self.reasoning_content = reasoning_content
+        if reasoning:
+            self.reasoning = reasoning
+
+
+class _FakeChoiceWithReasoning:
+    def __init__(self, content: str, reasoning_content: str = "", reasoning: str = ""):
+        self.message = _FakeMessageWithReasoning(content, reasoning_content, reasoning)
+
+
+class _FakeRespWithReasoning:
+    def __init__(self, content: str, reasoning_content: str = "", reasoning: str = ""):
+        self.choices = [_FakeChoiceWithReasoning(content, reasoning_content, reasoning)]
+
+
+class FakeClientCapturing(LLMClient):
+    def __init__(self, responses):
+        super().__init__(max_retries=0)
+        self._responses = list(responses)
+
+    async def _acompletion(self, kwargs):
+        return self._responses.pop(0) if self._responses else _FakeResp("")
+
+
+async def test_reasoning_content_emits_reasoning_event():
+    from onuw.events.bus import EventBus, ReasoningEvent
+    captured: list = []
+
+    class _Cap:
+        def on_event(self, e):
+            if isinstance(e, ReasoningEvent):
+                captured.append(e)
+
+    bus = EventBus([_Cap()])
+    client = FakeClientCapturing([
+        _FakeRespWithReasoning(
+            '{"vote": "p2"}',
+            reasoning_content="Hmm, p2 has been suspicious because...",
+        ),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus  # bind() normally does this; set directly for unit test
+    await agent.vote("u")
+    assert len(captured) == 1
+    assert captured[0].player_id == "p1"
+    assert "p2 has been suspicious" in captured[0].text
+
+
+async def test_reasoning_falls_back_to_reasoning_attribute():
+    from onuw.events.bus import EventBus, ReasoningEvent
+    captured: list = []
+    bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
+    client = FakeClientCapturing([
+        _FakeRespWithReasoning('{"vote": "p2"}', reasoning="alt-style trace"),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus
+    await agent.vote("u")
+    reasoning_events = [e for e in captured if isinstance(e, ReasoningEvent)]
+    assert reasoning_events and "alt-style trace" in reasoning_events[0].text
+
+
+async def test_inline_think_tags_extracted_as_reasoning_and_stripped_from_content():
+    from onuw.events.bus import EventBus, ReasoningEvent
+    captured: list = []
+    bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
+    inline = "<think>p3 said X so likely Y</think>\n{\"vote\": \"p3\"}"
+    client = FakeClientCapturing([_FakeRespWithReasoning(inline)])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus
+    target = await agent.vote("u")
+    assert target == "p3"  # content stripped of <think> still parses as JSON
+    reasoning_events = [e for e in captured if isinstance(e, ReasoningEvent)]
+    assert reasoning_events and "p3 said X so likely Y" in reasoning_events[0].text
+
+
+async def test_no_reasoning_means_no_reasoning_event():
+    from onuw.events.bus import EventBus, ReasoningEvent
+    captured: list = []
+    bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
+    client = FakeClient(['{"vote": "p2"}'])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus
+    await agent.vote("u")
+    assert not [e for e in captured if isinstance(e, ReasoningEvent)]

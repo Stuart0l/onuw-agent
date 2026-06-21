@@ -62,6 +62,7 @@ def deal(
         agent.bind(
             system_prompt=build_system_prompt(ps, pcfg.persona),
             memory=memories[pcfg.id],
+            bus=bus,
         )
         agents[pcfg.id] = agent
 

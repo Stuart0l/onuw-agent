@@ -1,8 +1,31 @@
 import asyncio
 import random
+import re
 from typing import Any
 
-from . import TokenUsage
+from . import LLMResult, TokenUsage
+
+
+_THINK_TAG_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
+
+
+def _split_think_tags(content: str) -> tuple[str, str]:
+    """Return ``(stripped_content, inline_reasoning)``.
+
+    Removes every ``<think>...</think>`` block from the content and
+    concatenates their bodies as the reasoning. If no tags are present,
+    returns the content unchanged and an empty reasoning string.
+    """
+    if "<think>" not in content.lower():
+        return content, ""
+    pieces: list[str] = []
+
+    def _grab(m: re.Match) -> str:
+        pieces.append(m.group(1).strip())
+        return ""
+
+    stripped = _THINK_TAG_RE.sub(_grab, content).strip()
+    return stripped, "\n\n".join(p for p in pieces if p)
 
 
 class LLMClient:
@@ -56,7 +79,11 @@ class LLMClient:
             # hatch for provider-specific fields like MiniMax `thinking`.
             kwargs["extra_body"] = extra_body
         resp = await self._call_with_backoff(kwargs)
-        return self._extract_content(resp), TokenUsage.from_response(resp)
+        return LLMResult(
+            content=self._extract_content(resp),
+            usage=TokenUsage.from_response(resp),
+            reasoning=self._extract_reasoning(resp),
+        )
 
     async def _call_with_backoff(self, kwargs: dict) -> Any:
         attempt = 0
@@ -80,7 +107,29 @@ class LLMClient:
 
     @staticmethod
     def _extract_content(resp: Any) -> str:
-        return resp.choices[0].message.content or ""
+        """Final answer with any ``<think>...</think>`` block stripped."""
+        content = resp.choices[0].message.content or ""
+        stripped, _ = _split_think_tags(content)
+        return stripped
+
+    @staticmethod
+    def _extract_reasoning(resp: Any) -> str:
+        """Pull the chain-of-thought out of reasoning-model responses.
+
+        Order of attempts:
+          1. ``message.reasoning_content`` — MiniMax-M3, DeepSeek-R1 native API.
+          2. ``message.reasoning`` — older / variant providers.
+          3. ``<think>...</think>`` block inline in ``message.content`` —
+             DeepSeek-R1 via OpenAI-compatible endpoint and similar.
+        """
+        msg = resp.choices[0].message
+        for key in ("reasoning_content", "reasoning"):
+            v = getattr(msg, key, None)
+            if v:
+                return str(v)
+        content = getattr(msg, "content", None) or ""
+        _, inline = _split_think_tags(content)
+        return inline
 
     @staticmethod
     def _is_retryable(exc: BaseException) -> bool:

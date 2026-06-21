@@ -8,6 +8,7 @@ from .bus import (
     GameStartEvent,
     NightActionEvent,
     NightWakeEvent,
+    ReasoningEvent,
     RoleAssignedEvent,
     SpeechEvent,
     StateMutationEvent,
@@ -60,6 +61,11 @@ class ConsoleObserver(Observer):
             self.console.print(
                 f"  [dim]{event.kind}: {event.a} <-> {event.b}[/dim]"
             )
+        elif isinstance(event, ReasoningEvent):
+            self.console.print(
+                f"[dim cyan]({event.player_id} thinking)[/dim cyan]"
+            )
+            self.console.print(f"[dim cyan]{event.text}[/dim cyan]")
         elif isinstance(event, SpeechEvent):
             self.console.print(
                 f"[green]R{event.round_idx + 1} {event.speaker_id}:[/green] "

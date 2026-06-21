@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from ..llm import TokenUsage
 from ..memory import PlayerMemory
+
+if TYPE_CHECKING:
+    from ..events.bus import EventBus
 
 
 class Agent(ABC):
@@ -24,17 +28,28 @@ class Agent(ABC):
         self.player_id = player_id
         self.system_prompt: str = ""
         self.memory: PlayerMemory | None = None
+        self.bus: "EventBus | None" = None
         # Accumulates token usage across all LLM calls this agent makes
         # during a single game. Engine sums these at game end.
         self.token_usage: TokenUsage = TokenUsage()
 
-    def bind(self, system_prompt: str, memory: PlayerMemory) -> None:
+    def bind(
+        self,
+        system_prompt: str,
+        memory: PlayerMemory,
+        bus: "EventBus | None" = None,
+    ) -> None:
         """Engine-supplied context. Custom agents are free to read
         ``self.memory`` directly and ignore the rendered ``user_prompt``
         passed to the action methods if they prefer their own templating.
+
+        ``bus`` is supplied so backends that produce side-channel signal
+        (e.g. reasoning-model chain-of-thought) can emit private events
+        without needing direct access to observers.
         """
         self.system_prompt = system_prompt
         self.memory = memory
+        self.bus = bus
 
     @abstractmethod
     async def act_night(self, action_key: str, user_prompt: str) -> dict:

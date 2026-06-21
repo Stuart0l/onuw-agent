@@ -55,10 +55,10 @@ players:
     model: openai/MiniMax-M3
     persona: "A theatrical poker player. Bluffs constantly."
     temperature: 0.7
-    max_tokens: 8192
+    max_tokens: 16384
     extra_body:
       thinking:
-        type: disabled
+        type: adaptive
   - id: p3
     name: Cara
     model: openai/MiniMax-M3

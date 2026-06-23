@@ -96,6 +96,19 @@ class ReasoningChunkEvent(Event):
 
 
 @dataclass(frozen=True)
+class LLMCallEvent(Event):
+    """One full LLM call's aggregated reasoning + content. Emitted by
+    ``LLMAgent`` after each call so the JSON log captures the whole
+    text in one record instead of N chunk records. ConsoleObserver
+    ignores this event — chunks already painted it live."""
+
+    player_id: str
+    reasoning: str
+    content: str
+    visibility: ClassVar[Visibility] = "private"
+
+
+@dataclass(frozen=True)
 class ContentChunkEvent(Event):
     """One streamed token (or chunk) of the final answer. Inline
     ``<think>`` tags appear in this stream raw — they're cleaned out

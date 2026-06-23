@@ -2,7 +2,7 @@ import json
 import warnings
 from typing import TYPE_CHECKING, Any
 
-from ..events.bus import ContentChunkEvent, ReasoningChunkEvent
+from ..events.bus import ContentChunkEvent, LLMCallEvent, ReasoningChunkEvent
 from ..llm.client import LLMClient
 from ..memory import PlayerMemory
 from ..prompts.day import build_day_speech_task
@@ -212,6 +212,14 @@ class LLMAgent(Agent):
             on_content_chunk=_emit_content if streaming else None,
         )
         self.token_usage += result.usage
+        if self.bus is not None:
+            self.bus.emit(
+                LLMCallEvent(
+                    player_id=self.player_id,
+                    reasoning=result.reasoning,
+                    content=result.content,
+                )
+            )
         return result.content
 
 

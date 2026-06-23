@@ -7,6 +7,7 @@ from .bus import (
     Event,
     GameEndEvent,
     GameStartEvent,
+    LLMCallEvent,
     NightActionEvent,
     NightWakeEvent,
     ReasoningChunkEvent,
@@ -38,6 +39,9 @@ class ConsoleObserver(Observer):
             if not self.god:
                 return
             self._render_chunk(event.player_id, event.delta, "content")
+            return
+        if isinstance(event, LLMCallEvent):
+            # Already painted via chunks; aggregated event is JSON-log only.
             return
         # Any non-chunk event interrupts an in-progress streaming render.
         self._close_streaming_line()

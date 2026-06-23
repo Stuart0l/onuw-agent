@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from .bus import Event, GameEndEvent
+from .bus import ContentChunkEvent, Event, GameEndEvent, ReasoningChunkEvent
 from .observer import Observer
 
 
@@ -40,6 +40,10 @@ class JsonObserver(Observer):
     def on_event(self, event: Event) -> None:
         if self.game_id is None:
             self.game_id = getattr(event, "game_id", None) or uuid.uuid4().hex[:8]
+        # Skip streaming chunks — the per-call aggregate arrives as a
+        # single LLMCallEvent from LLMAgent and that's what we log.
+        if isinstance(event, (ReasoningChunkEvent, ContentChunkEvent)):
+            return
         record = _serialize(event)
         record["ts"] = datetime.now(timezone.utc).isoformat()
         self.events.append(record)

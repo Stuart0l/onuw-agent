@@ -1,5 +1,6 @@
 import asyncio
 import random
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -170,32 +171,49 @@ class LLMClient:
         content_parts: list[str] = []
         reasoning_parts: list[str] = []
         usage = TokenUsage()
-        async for chunk in chunks:
-            choices = getattr(chunk, "choices", None) or []
-            if choices:
-                delta = getattr(choices[0], "delta", None)
-                if delta is not None:
-                    rd = getattr(delta, "reasoning_content", None) or getattr(
-                        delta, "reasoning", None
-                    )
-                    if rd:
-                        reasoning_parts.append(rd)
-                        if on_reasoning_chunk is not None:
-                            on_reasoning_chunk(rd)
-                    cd = getattr(delta, "content", None)
-                    if cd:
-                        c_out, r_out = splitter.feed(cd)
-                        if c_out:
-                            content_parts.append(c_out)
-                            if on_content_chunk is not None:
-                                on_content_chunk(c_out)
-                        if r_out:
-                            reasoning_parts.append(r_out)
+        try:
+            async for chunk in chunks:
+                choices = getattr(chunk, "choices", None) or []
+                if choices:
+                    delta = getattr(choices[0], "delta", None)
+                    if delta is not None:
+                        rd = getattr(delta, "reasoning_content", None) or getattr(
+                            delta, "reasoning", None
+                        )
+                        if rd:
+                            reasoning_parts.append(rd)
                             if on_reasoning_chunk is not None:
-                                on_reasoning_chunk(r_out)
-            chunk_usage = getattr(chunk, "usage", None)
-            if chunk_usage is not None:
-                usage = TokenUsage.from_response(chunk)
+                                on_reasoning_chunk(rd)
+                        cd = getattr(delta, "content", None)
+                        if cd:
+                            c_out, r_out = splitter.feed(cd)
+                            if c_out:
+                                content_parts.append(c_out)
+                                if on_content_chunk is not None:
+                                    on_content_chunk(c_out)
+                            if r_out:
+                                reasoning_parts.append(r_out)
+                                if on_reasoning_chunk is not None:
+                                    on_reasoning_chunk(r_out)
+                chunk_usage = getattr(chunk, "usage", None)
+                if chunk_usage is not None:
+                    usage = TokenUsage.from_response(chunk)
+        except Exception as exc:  # noqa: BLE001
+            # MiniMax (and other providers) occasionally end a stream
+            # with finish_reason="error" mid-flight, which LiteLLM
+            # surfaces as an APIConnectionError / MidStreamFallbackError
+            # raised from inside the async iterator. The chunks we
+            # already received are valid — return them as a partial
+            # result so the agent's parse-failure retry path can decide
+            # whether to retry the call. If we have nothing useful,
+            # the agent's existing retry-then-default kicks in.
+            warnings.warn(
+                f"Stream interrupted mid-flight ({type(exc).__name__}: {exc}); "
+                f"returning partial result ({len(content_parts)} content "
+                f"chunks, {len(reasoning_parts)} reasoning chunks accumulated).",
+                UserWarning,
+                stacklevel=2,
+            )
 
         return LLMResult(
             content="".join(content_parts).strip(),

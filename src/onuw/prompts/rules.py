@@ -118,5 +118,54 @@ def team_summary(role: Role) -> str:
     )
 
 
-SWAP_REMINDER = """== REMINDER: NIGHT SWAPS ==
-Any player's card may have been swapped during the night by a Robber, Troublemaker, or Drunk. Your dealt role above is your ORIGINAL role — your CURRENT role at end of night may differ. Reason carefully about this when forming claims, accusations, and votes."""
+def swap_reminder(dealt_role: Role) -> str:
+    """Per-role decision rule that replaces the previous open-ended swap
+    reminder.
+
+    Two "certain" roles get a flat assertion (no need to reason about
+    current role): Troublemaker and Insomniac. Everyone else must reason
+    about their current role first, then commit once per turn — this
+    prevents the observed failure mode where seats spent thousands of
+    tokens flip-flopping between "I am still my dealt role" and "I was
+    swapped."
+    """
+    if dealt_role == Role.TROUBLEMAKER:
+        return (
+            "== YOUR CURRENT ROLE ==\n"
+            "You ARE still the Troublemaker. Your card is untouched — "
+            "Troublemakers only swap OTHER players, never themselves. "
+            "And Robbers will not swap with you. Stick with VILLAGE "
+            "team's win condition."
+        )
+    if dealt_role == Role.INSOMNIAC:
+        return (
+            "== YOUR CURRENT ROLE ==\n"
+            "Your Insomniac wake observation IS your current role — trust "
+            "it. You wake up last so no one can swap with you. Stick with "
+            "VILLAGE team's win condition."
+        )
+    if dealt_role == Role.ROBBER:
+        return (
+            "== YOUR CURRENT ROLE ==\n"
+            "Your night observation already shows you the card you stole "
+            "— treat that as your CURRENT role and use its team's win "
+            "condition. The only thing that could change this is the "
+            "Troublemaker (wakes after you); only revise this if a "
+            "Troublemaker credibly claims to have swapped your card. "
+            "Otherwise act as the role you saw."
+        )
+    # All other roles: reason, then commit.
+    return (
+        "== YOUR CURRENT ROLE — REASON, THEN COMMIT ==\n"
+        f"You were dealt {dealt_role.value}. Your card may have been "
+        "swapped during the night by a Robber or Troublemaker, so your "
+        "CURRENT role may differ from your dealt role.\n"
+        "Step 1: Weigh the evidence (your night observation + any claims "
+        "so far). Pick the SINGLE most likely current-role for yourself.\n"
+        "Step 2: Commit to that interpretation for the rest of this turn. "
+        "Use the corresponding team's win condition.\n"
+        "Step 3: Choose the highest-EV action under your committed "
+        "interpretation.\n"
+        "DO NOT revisit your interpretation after committing — looping "
+        "wastes reasoning and produces worse decisions."
+    )

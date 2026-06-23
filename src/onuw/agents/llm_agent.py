@@ -135,7 +135,9 @@ class LLMAgent(Agent):
     ) -> str:
         if self._memory is None:
             return ""
-        task = build_day_speech_task(round_idx, total_rounds, max_chars)
+        task = build_day_speech_task(
+            round_idx, total_rounds, max_chars, dealt_role=self.dealt_role
+        )
         user_prompt = self._memory.to_prompt_context("day") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict) and isinstance(parsed.get("speech"), str):
@@ -145,7 +147,7 @@ class LLMAgent(Agent):
     async def vote(self, valid_targets: list[str]) -> str:
         if self._memory is None:
             return self.player_id
-        task = build_vote_task(valid_targets)
+        task = build_vote_task(valid_targets, dealt_role=self.dealt_role)
         user_prompt = self._memory.to_prompt_context("vote") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict) and isinstance(parsed.get("vote"), str):

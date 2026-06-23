@@ -3,7 +3,7 @@ from onuw.prompts.day import build_day_speech_task
 from onuw.prompts.rules import (
     OUTPUT_FORMAT_PREAMBLE,
     ROLE_ABILITY_BLOCKS,
-    SWAP_REMINDER,
+    swap_reminder,
     team_summary,
 )
 from onuw.prompts.system import build_system_prompt
@@ -145,10 +145,21 @@ def test_team_summary_drunk_signposts_unknown_team():
 # ----- swap reminder -----
 
 def test_day_task_includes_swap_reminder():
-    assert SWAP_REMINDER in build_day_speech_task(0, 3, max_chars=600)
-    assert "NIGHT SWAPS" in build_day_speech_task(0, 3, max_chars=600)
+    # Without dealt_role the swap reminder is omitted.
+    assert "YOUR CURRENT ROLE" not in build_day_speech_task(0, 3, max_chars=600)
+    # With dealt_role the role-specific commit instructions are included.
+    out = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.WEREWOLF)
+    assert "YOUR CURRENT ROLE" in out
+    assert "DO NOT revisit" in out
+    # Certain roles get a flat assertion, not the reasoning prompt.
+    out_tm = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.TROUBLEMAKER)
+    assert "still the Troublemaker" in out_tm
+    out_ins = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.INSOMNIAC)
+    assert "Insomniac wake observation IS your current role" in out_ins
 
 
 def test_vote_task_includes_swap_reminder():
-    assert SWAP_REMINDER in build_vote_task(["p1", "p2", "p3"])
-    assert "NIGHT SWAPS" in build_vote_task(["p1", "p2", "p3"])
+    assert "YOUR CURRENT ROLE" not in build_vote_task(["p1", "p2", "p3"])
+    out = build_vote_task(["p1", "p2", "p3"], dealt_role=Role.SEER)
+    assert "YOUR CURRENT ROLE" in out
+    assert "DO NOT revisit" in out

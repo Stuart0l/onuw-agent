@@ -7,7 +7,7 @@ from ..llm.client import LLMClient
 from ..memory import PlayerMemory
 from ..prompts.day import build_day_speech_task
 from ..prompts.night import build_night_task
-from ..prompts.system import build_system_prompt
+from ..prompts.system import build_night_system_prompt, build_system_prompt
 from ..prompts.vote import build_vote_task
 from ..state import Speech
 from ..types import Role
@@ -51,6 +51,7 @@ class LLMAgent(Agent):
         self.client = client or LLMClient()
         self._memory: PlayerMemory | None = None
         self._system_prompt: str = ""
+        self._night_system_prompt: str = ""
 
     @property
     def memory(self) -> PlayerMemory | None:
@@ -87,6 +88,7 @@ class LLMAgent(Agent):
             original_role=dealt_role, current_role=dealt_role,
         )
         self._system_prompt = build_system_prompt(ps, role_pool=self.role_pool)
+        self._night_system_prompt = build_night_system_prompt(dealt_role)
         self._memory = PlayerMemory(
             player_id=self.player_id,
             seat=seat,
@@ -117,12 +119,13 @@ class LLMAgent(Agent):
     async def act_night(
         self, action_key: str, valid_targets: list[str]
     ) -> dict:
+        # Night decisions don't need memory context， the task block names the role
+        # and lists valid targets.
         role = _ACTION_KEY_TO_ROLE.get(action_key)
         if role is None or self._memory is None:
             return {}
-        task = build_night_task(role, self.player_id, self.seat_order)
-        user_prompt = self._memory.to_prompt_context("night") + "\n\n" + task
-        parsed = await self._ask_json(user_prompt)
+        user_prompt = build_night_task(role, self.player_id, self.seat_order)
+        parsed = await self._ask_json(user_prompt, system=self._night_system_prompt)
         if isinstance(parsed, dict):
             return parsed
         return {}
@@ -158,14 +161,19 @@ class LLMAgent(Agent):
 
     # ---- LLM plumbing ----
 
-    async def _ask_json(self, user_prompt: str) -> Any | None:
+    async def _ask_json(
+        self, user_prompt: str, *, system: str | None = None
+    ) -> Any | None:
         """Send a completion; one retry with a strict reminder if the
         first response is unparseable. Returns the parsed value or None
         if both attempts fail. Emits a UserWarning carrying both raw
         responses when the fallback fires, so a misbehaving model is
         visible without spamming the console on every successful call.
+
+        ``system`` overrides the default day/vote system prompt; used by
+        ``act_night`` to send the trimmed night-only system prompt.
         """
-        raw = await self._complete(user_prompt)
+        raw = await self._complete(user_prompt, system=system)
         parsed = _try_parse(raw)
         if parsed is not None:
             return parsed
@@ -175,7 +183,7 @@ class LLMAgent(Agent):
             "matching the required schema. Respond with VALID JSON only "
             "— no prose, no markdown fences."
         )
-        raw2 = await self._complete(retry_prompt)
+        raw2 = await self._complete(retry_prompt, system=system)
         parsed2 = _try_parse(raw2)
         if parsed2 is None:
             warnings.warn(
@@ -186,7 +194,9 @@ class LLMAgent(Agent):
             )
         return parsed2
 
-    async def _complete(self, user_prompt: str) -> str:
+    async def _complete(
+        self, user_prompt: str, *, system: str | None = None
+    ) -> str:
         # Stream when there is a bus to publish chunks to — otherwise
         # there is no observer that would benefit from live tokens.
         streaming = self.bus is not None
@@ -204,7 +214,7 @@ class LLMAgent(Agent):
             )
 
         result = await self.client.complete(
-            system=self._system_prompt,
+            system=system if system is not None else self._system_prompt,
             user=user_prompt,
             model=self.model,
             temperature=self.temperature,

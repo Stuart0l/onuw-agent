@@ -45,6 +45,16 @@ def _roles_in_game_block(role_pool: list[Role] | None) -> str:
     return "\n\n".join(blocks)
 
 
+def build_night_system_prompt(role: Role) -> str:
+    """Minimal system prompt for night-action calls. Drops game rules,
+    win conditions, deck composition, and other roles' abilities — the
+    agent is just picking a target/index for its OWN role, none of that
+    context informs the decision."""
+    return "\n\n".join(
+        [SYSTEM_PREAMBLE, ROLE_ABILITY_BLOCKS[role], OUTPUT_FORMAT_PREAMBLE]
+    )
+
+
 def build_system_prompt(
     player: PlayerState,
     role_pool: list[Role] | None = None,

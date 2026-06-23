@@ -4,7 +4,7 @@ from onuw.prompts.rules import (
     OUTPUT_FORMAT_PREAMBLE,
     ROLE_ABILITY_BLOCKS,
 )
-from onuw.prompts.system import build_system_prompt
+from onuw.prompts.system import build_night_system_prompt, build_system_prompt
 from onuw.prompts.vote import build_vote_task
 from onuw.state import PlayerState, Speech
 from onuw.types import Role
@@ -99,6 +99,21 @@ def test_system_prompt_contains_required_layers():
     out = build_system_prompt(_player())
     assert "GAME RULES" in out
     assert "WIN CONDITIONS" in out
+    assert OUTPUT_FORMAT_PREAMBLE in out
+
+
+def test_night_system_prompt_is_minimal():
+    out = build_night_system_prompt(Role.ROBBER)
+    # Own role only — no rules, win conditions, deck, or other roles.
+    assert ROLE_ABILITY_BLOCKS[Role.ROBBER] in out
+    assert "GAME RULES" not in out
+    assert "WIN CONDITIONS" not in out
+    assert "TABLE" not in out
+    assert "ROLES IN THIS GAME" not in out
+    for other in Role:
+        if other == Role.ROBBER:
+            continue
+        assert ROLE_ABILITY_BLOCKS[other] not in out
     assert OUTPUT_FORMAT_PREAMBLE in out
 
 

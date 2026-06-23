@@ -35,7 +35,6 @@ class Agent(ABC):
         self.name: str = player_id
         self.seat: int = 0
         self.dealt_role: Role | None = None
-        self.persona: str | None = None
         self.seat_order: list[str] = []
         self.role_pool: list[Role] = []
         self.language: str = "en"
@@ -50,7 +49,6 @@ class Agent(ABC):
         name: str,
         seat: int,
         dealt_role: Role,
-        persona: str | None,
         seat_order: list[str],
         role_pool: list[Role] | None = None,
         language: str = "en",
@@ -62,7 +60,6 @@ class Agent(ABC):
         self.name = name
         self.seat = seat
         self.dealt_role = dealt_role
-        self.persona = persona
         self.seat_order = seat_order
         self.role_pool = list(role_pool or [])
         self.language = language

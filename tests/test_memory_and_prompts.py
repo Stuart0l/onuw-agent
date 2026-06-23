@@ -21,12 +21,11 @@ def _player(role: Role = Role.SEER) -> PlayerState:
     )
 
 
-def _memory(role: Role = Role.SEER, persona: str | None = None) -> PlayerMemory:
+def _memory(role: Role = Role.SEER) -> PlayerMemory:
     return PlayerMemory(
         player_id="p1",
         seat=1,
         name="Alice",
-        persona=persona,
         assigned_role=role,
     )
 
@@ -53,13 +52,11 @@ def test_to_prompt_context_has_expected_sections_when_empty():
 
 
 def test_to_prompt_context_omits_sections_now_in_system_prompt():
-    # Role ability, all-teams win conditions, and persona are in the
-    # system prompt; the user prompt must not duplicate them.
-    out = _memory(persona="A cautious librarian.").to_prompt_context("night")
+    # Role ability and all-teams win conditions are in the system prompt;
+    # the user prompt must not duplicate them.
+    out = _memory().to_prompt_context("night")
     assert "== ROLE ABILITY" not in out
     assert "== WIN CONDITIONS (all teams) ==" not in out
-    assert "Persona:" not in out
-    assert "A cautious librarian." not in out
 
 
 def test_observation_renders_into_what_you_learned_section():
@@ -91,7 +88,7 @@ def test_speeches_render_grouped_by_round_and_in_order():
 
 
 def test_system_prompt_includes_own_role_ability_only():
-    out = build_system_prompt(_player(Role.SEER), persona=None)
+    out = build_system_prompt(_player(Role.SEER))
     assert ROLE_ABILITY_BLOCKS[Role.SEER] in out
     for other in Role:
         if other == Role.SEER:
@@ -99,16 +96,8 @@ def test_system_prompt_includes_own_role_ability_only():
         assert ROLE_ABILITY_BLOCKS[other] not in out
 
 
-def test_system_prompt_persona_block_appears_only_when_set():
-    out_none = build_system_prompt(_player(), persona=None)
-    assert "YOUR PERSONA" not in out_none
-    out_with = build_system_prompt(_player(), persona="A cautious librarian.")
-    assert "YOUR PERSONA" in out_with
-    assert "A cautious librarian." in out_with
-
-
 def test_system_prompt_contains_required_layers():
-    out = build_system_prompt(_player(), persona=None)
+    out = build_system_prompt(_player())
     assert "GAME RULES" in out
     assert "WIN CONDITIONS" in out
     assert OUTPUT_FORMAT_PREAMBLE in out

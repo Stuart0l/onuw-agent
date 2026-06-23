@@ -32,7 +32,7 @@ def _build(player_roles, center_roles=None, overrides=None):
         ps = players[pid]
         agent.bind(
             name=ps.name, seat=ps.seat, dealt_role=ps.original_role,
-            persona=None, seat_order=seat_order,
+            seat_order=seat_order,
         )
     return state, agents
 

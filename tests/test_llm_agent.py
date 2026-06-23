@@ -13,7 +13,7 @@ SEAT_ORDER = ["p1", "p2", "p3"]
 def _bind(agent: LLMAgent, role: Role = Role.VILLAGER) -> LLMAgent:
     agent.bind(
         name="Alice", seat=0, dealt_role=role,
-        persona=None, seat_order=SEAT_ORDER,
+        seat_order=SEAT_ORDER,
     )
     return agent
 
@@ -257,7 +257,7 @@ async def test_reasoning_content_streams_as_chunks():
     agent = LLMAgent("p1", model="x", client=client)
     agent.bind(
         name="Alice", seat=0, dealt_role=Role.VILLAGER,
-        persona=None, seat_order=SEAT_ORDER, bus=bus,
+        seat_order=SEAT_ORDER, bus=bus,
     )
     await agent.vote(valid_targets=SEAT_ORDER)
     chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
@@ -290,7 +290,7 @@ async def test_reasoning_falls_back_to_reasoning_attribute_on_delta():
     agent = LLMAgent("p1", model="x", client=client)
     agent.bind(
         name="Alice", seat=0, dealt_role=Role.VILLAGER,
-        persona=None, seat_order=SEAT_ORDER, bus=bus,
+        seat_order=SEAT_ORDER, bus=bus,
     )
     await agent.vote(valid_targets=SEAT_ORDER)
     chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
@@ -309,7 +309,7 @@ async def test_inline_think_tags_split_into_reasoning_and_content_chunks():
     agent = LLMAgent("p1", model="x", client=client)
     agent.bind(
         name="Alice", seat=0, dealt_role=Role.VILLAGER,
-        persona=None, seat_order=SEAT_ORDER, bus=bus,
+        seat_order=SEAT_ORDER, bus=bus,
     )
     target = await agent.vote(valid_targets=SEAT_ORDER)
     assert target == "p3"
@@ -332,7 +332,7 @@ async def test_no_reasoning_means_no_reasoning_chunk():
     agent = LLMAgent("p1", model="x", client=client)
     agent.bind(
         name="Alice", seat=0, dealt_role=Role.VILLAGER,
-        persona=None, seat_order=SEAT_ORDER, bus=bus,
+        seat_order=SEAT_ORDER, bus=bus,
     )
     await agent.vote(valid_targets=SEAT_ORDER)
     assert not [e for e in captured if isinstance(e, ReasoningChunkEvent)]
@@ -351,7 +351,7 @@ async def test_streaming_emits_reasoning_chunks_in_order():
     agent = LLMAgent("p1", model="x", client=client)
     agent.bind(
         name="Alice", seat=0, dealt_role=Role.VILLAGER,
-        persona=None, seat_order=SEAT_ORDER, bus=bus,
+        seat_order=SEAT_ORDER, bus=bus,
     )
     target = await agent.vote(valid_targets=SEAT_ORDER)
     assert target == "p3"

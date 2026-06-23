@@ -9,7 +9,6 @@ class PlayerConfig(BaseModel):
     id: str
     name: str
     model: str
-    persona: str | None = None
     temperature: float = 0.7
     max_tokens: int = 800
     # Enable response_format={"type":"json_object"} at the API level.

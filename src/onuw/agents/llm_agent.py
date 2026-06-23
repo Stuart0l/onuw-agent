@@ -66,7 +66,6 @@ class LLMAgent(Agent):
         name: str,
         seat: int,
         dealt_role: Role,
-        persona: str | None,
         seat_order: list[str],
         role_pool: list[Role] | None = None,
         language: str = "en",
@@ -76,7 +75,6 @@ class LLMAgent(Agent):
             name=name,
             seat=seat,
             dealt_role=dealt_role,
-            persona=persona,
             seat_order=seat_order,
             role_pool=role_pool,
             language=language,
@@ -88,14 +86,11 @@ class LLMAgent(Agent):
             id=self.player_id, name=name, seat=seat,
             original_role=dealt_role, current_role=dealt_role,
         )
-        self._system_prompt = build_system_prompt(
-            ps, persona, role_pool=self.role_pool
-        )
+        self._system_prompt = build_system_prompt(ps, role_pool=self.role_pool)
         self._memory = PlayerMemory(
             player_id=self.player_id,
             seat=seat,
             name=name,
-            persona=persona,
             assigned_role=dealt_role,
         )
 

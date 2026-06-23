@@ -29,12 +29,10 @@ players:
   - id: p1
     name: Alice
     model: openai/gemma-4-e2b-it
-    persona: "A cautious librarian who hates being interrupted."
     temperature: 0.7
   - id: p2
     name: Bob
     model: openai/gemma-4-e2b-it
-    persona: "A theatrical poker player. Bluffs constantly."
     temperature: 0.7
   - id: p3
     name: Cara
@@ -43,10 +41,8 @@ players:
   - id: p4
     name: Dan
     model: openai/gemma-4-e2b-it
-    persona: "Analytical, leans on probabilities."
     temperature: 0.7
   - id: p5
     name: Eve
     model: openai/gemma-4-e2b-it
-    persona: "Chaotic gremlin. Loves to accuse people."
     temperature: 0.7

@@ -56,7 +56,6 @@ def deal(
             name=pcfg.name,
             seat=i,
             dealt_role=player_states[pcfg.id].original_role,
-            persona=pcfg.persona,
             seat_order=seat_order,
             role_pool=list(cfg.role_pool),
             language="en",
@@ -82,7 +81,6 @@ def deal(
                     "id": p.id,
                     "name": p.name,
                     "model": p.model,
-                    "persona": p.persona,
                 }
                 for p in cfg.players
             ],

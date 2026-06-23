@@ -17,7 +17,6 @@ class PlayerMemory:
     player_id: str
     seat: int
     name: str
-    persona: str | None
     assigned_role: Role
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
@@ -62,8 +61,6 @@ class PlayerMemory:
         )
 
     def _identity_section(self) -> str:
-        # Persona is intentionally omitted here — it lives in the system
-        # prompt's "== YOUR PERSONA ==" block, built once at setup.
         return (
             "== YOUR IDENTITY ==\n"
             f"You are {self.name} (seat {self.seat}, id {self.player_id}). "

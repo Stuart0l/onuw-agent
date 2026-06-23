@@ -68,7 +68,7 @@ def my_factory(player_cfg):
 # Hand `my_factory` to GameEngine as the agent_factory argument.
 ```
 
-At game start the engine calls `agent.bind(name, seat, dealt_role, persona, seat_order, role_pool, language, bus)` so the agent has every public fact it needs (player roster, deck composition, its own dealt role, etc.). Each agent decides what to remember and how to render its prompts; the engine is content with the structured action / speech / vote it returns.
+At game start the engine calls `agent.bind(name, seat, dealt_role, seat_order, role_pool, language, bus)` so the agent has every public fact it needs (player roster, deck composition, its own dealt role, etc.). Each agent decides what to remember and how to render its prompts; the engine is content with the structured action / speech / vote it returns.
 
 The shipped `LLMAgent` (default factory) holds a private `PlayerMemory`, builds its own system + user prompts, and streams reasoning + content chunks live via `ReasoningChunkEvent` / `ContentChunkEvent`. A custom agent is free to ignore all of this.
 
@@ -85,7 +85,6 @@ Per-player tunables:
 | `max_tokens` | reasoning models need 4k+; non-reasoning models can stay around 800 |
 | `json_mode` | `true` only on providers that accept `response_format={"type":"json_object"}` (OpenAI yes, LM Studio no) |
 | `extra_body` | provider-specific request body (e.g. `thinking: {type: disabled}` for MiniMax) |
-| `persona` | optional one-sentence personality |
 
 ## Architecture
 

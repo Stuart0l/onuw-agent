@@ -11,16 +11,6 @@ from .rules import (
 )
 
 
-def _persona_block(persona: str | None) -> str:
-    if not persona:
-        return ""
-    return (
-        "== YOUR PERSONA ==\n"
-        f"{persona}\n"
-        "Stay in character; this shapes how you speak and reason."
-    )
-
-
 def _table_block(role_pool: list[Role] | None) -> str:
     """Public deck composition — what cards exist in this game."""
     if not role_pool:
@@ -57,7 +47,6 @@ def _roles_in_game_block(role_pool: list[Role] | None) -> str:
 
 def build_system_prompt(
     player: PlayerState,
-    persona: str | None,
     role_pool: list[Role] | None = None,
 ) -> str:
     # When role_pool is given, the ROLES IN THIS GAME block already
@@ -74,7 +63,6 @@ def build_system_prompt(
         _table_block(role_pool),
         _roles_in_game_block(role_pool),
         own_role_block,
-        _persona_block(persona),
         OUTPUT_FORMAT_PREAMBLE,
     ]
     return "\n\n".join(p for p in parts if p)

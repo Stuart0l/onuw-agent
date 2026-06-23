@@ -33,7 +33,7 @@ def _agents_with_votes(state: GameState, votes: dict[str, str]):
         ps = state.players[pid]
         agent.bind(
             name=ps.name, seat=ps.seat, dealt_role=ps.original_role,
-            persona=None, seat_order=state.seat_order,
+            seat_order=state.seat_order,
         )
     return agents
 

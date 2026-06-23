@@ -85,9 +85,26 @@ class DeathsEvent(Event):
 
 
 @dataclass(frozen=True)
-class ReasoningEvent(Event):
+class ReasoningChunkEvent(Event):
+    """One streamed token (or chunk) of a reasoning-model's chain of
+    thought. Concatenating all chunks for a given player reconstructs
+    the full reasoning text."""
+
     player_id: str
-    text: str
+    delta: str
+    visibility: ClassVar[Visibility] = "private"
+
+
+@dataclass(frozen=True)
+class ContentChunkEvent(Event):
+    """One streamed token (or chunk) of the final answer. Inline
+    ``<think>`` tags appear in this stream raw — they're cleaned out
+    when the engine consumes the parsed result, but during live
+    streaming they act as a visible delimiter between reasoning and
+    answer for providers that emit everything via ``delta.content``."""
+
+    player_id: str
+    delta: str
     visibility: ClassVar[Visibility] = "private"
 
 

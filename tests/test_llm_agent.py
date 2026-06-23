@@ -217,64 +217,169 @@ class FakeClientCapturing(LLMClient):
         return self._responses.pop(0) if self._responses else _FakeResp("")
 
 
-async def test_reasoning_content_emits_reasoning_event():
-    from onuw.events.bus import EventBus, ReasoningEvent
-    captured: list = []
-
-    class _Cap:
-        def on_event(self, e):
-            if isinstance(e, ReasoningEvent):
-                captured.append(e)
-
-    bus = EventBus([_Cap()])
-    client = FakeClientCapturing([
-        _FakeRespWithReasoning(
-            '{"vote": "p2"}',
-            reasoning_content="Hmm, p2 has been suspicious because...",
-        ),
-    ])
-    agent = LLMAgent("p1", model="x", client=client)
-    agent.bus = bus  # bind() normally does this; set directly for unit test
-    await agent.vote("u")
-    assert len(captured) == 1
-    assert captured[0].player_id == "p1"
-    assert "p2 has been suspicious" in captured[0].text
-
-
-async def test_reasoning_falls_back_to_reasoning_attribute():
-    from onuw.events.bus import EventBus, ReasoningEvent
+async def test_reasoning_content_streams_as_chunks():
+    from onuw.events.bus import EventBus, ReasoningChunkEvent
     captured: list = []
     bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
-    client = FakeClientCapturing([
-        _FakeRespWithReasoning('{"vote": "p2"}', reasoning="alt-style trace"),
+    client = FakeStreamingClient([
+        _FakeStreamChunk(reasoning_content="Hmm, "),
+        _FakeStreamChunk(reasoning_content="p2 has been suspicious"),
+        _FakeStreamChunk(content='{"vote": "p2"}'),
     ])
     agent = LLMAgent("p1", model="x", client=client)
     agent.bus = bus
     await agent.vote("u")
-    reasoning_events = [e for e in captured if isinstance(e, ReasoningEvent)]
-    assert reasoning_events and "alt-style trace" in reasoning_events[0].text
+    chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
+    assert "".join(c.delta for c in chunks) == "Hmm, p2 has been suspicious"
 
 
-async def test_inline_think_tags_extracted_as_reasoning_and_stripped_from_content():
-    from onuw.events.bus import EventBus, ReasoningEvent
+async def test_reasoning_falls_back_to_reasoning_attribute_on_delta():
+    from onuw.events.bus import EventBus, ReasoningChunkEvent
+
+    class _AltDelta:
+        def __init__(self, content="", reasoning=""):
+            self.content = content
+            self.reasoning = reasoning  # NOT reasoning_content
+
+    class _AltChoice:
+        def __init__(self, content="", reasoning=""):
+            self.delta = _AltDelta(content, reasoning)
+
+    class _AltChunk:
+        def __init__(self, content="", reasoning="", usage=None):
+            self.choices = [_AltChoice(content, reasoning)]
+            self.usage = usage
+
     captured: list = []
     bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
-    inline = "<think>p3 said X so likely Y</think>\n{\"vote\": \"p3\"}"
-    client = FakeClientCapturing([_FakeRespWithReasoning(inline)])
+    client = FakeStreamingClient([
+        _AltChunk(reasoning="alt-style trace"),
+        _AltChunk(content='{"vote": "p2"}'),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus
+    await agent.vote("u")
+    chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
+    assert chunks and "alt-style trace" in "".join(c.delta for c in chunks)
+
+
+async def test_inline_think_tags_split_into_reasoning_and_content_chunks():
+    # The splitter strips <think>...</think> from content deltas live
+    # and routes the wrapped bytes to reasoning chunks instead, so the
+    # user never sees the tag text in the displayed stream.
+    from onuw.events.bus import ContentChunkEvent, EventBus, ReasoningChunkEvent
+    captured: list = []
+    bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
+    client = FakeStreamingClient([
+        _FakeStreamChunk(content="<think>p3 said X "),
+        _FakeStreamChunk(content="so likely Y"),
+        _FakeStreamChunk(content='</think>\n{"vote": "p3"}'),
+    ])
     agent = LLMAgent("p1", model="x", client=client)
     agent.bus = bus
     target = await agent.vote("u")
-    assert target == "p3"  # content stripped of <think> still parses as JSON
-    reasoning_events = [e for e in captured if isinstance(e, ReasoningEvent)]
-    assert reasoning_events and "p3 said X so likely Y" in reasoning_events[0].text
+    assert target == "p3"
+    reasoning_chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
+    assert "".join(c.delta for c in reasoning_chunks) == "p3 said X so likely Y"
+    content_chunks = [e for e in captured if isinstance(e, ContentChunkEvent)]
+    # Only the post-</think> bytes reach the content stream — no tags.
+    joined_content = "".join(c.delta for c in content_chunks)
+    assert "<think>" not in joined_content
+    assert "</think>" not in joined_content
+    assert '{"vote": "p3"}' in joined_content
 
 
-async def test_no_reasoning_means_no_reasoning_event():
-    from onuw.events.bus import EventBus, ReasoningEvent
+async def test_no_reasoning_means_no_reasoning_chunk():
+    from onuw.events.bus import EventBus, ReasoningChunkEvent
     captured: list = []
     bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
-    client = FakeClient(['{"vote": "p2"}'])
+    client = FakeStreamingClient([
+        _FakeStreamChunk(content='{"vote": "p2"}'),
+    ])
     agent = LLMAgent("p1", model="x", client=client)
     agent.bus = bus
     await agent.vote("u")
-    assert not [e for e in captured if isinstance(e, ReasoningEvent)]
+    assert not [e for e in captured if isinstance(e, ReasoningChunkEvent)]
+
+
+# ----- streaming -----
+
+class _FakeDelta:
+    def __init__(self, content: str = "", reasoning_content: str = ""):
+        self.content = content
+        self.reasoning_content = reasoning_content
+
+
+class _FakeStreamChoice:
+    def __init__(self, content: str = "", reasoning_content: str = ""):
+        self.delta = _FakeDelta(content, reasoning_content)
+
+
+class _FakeStreamChunk:
+    def __init__(
+        self,
+        content: str = "",
+        reasoning_content: str = "",
+        usage: "_FakeUsage | None" = None,
+    ):
+        self.choices = [_FakeStreamChoice(content, reasoning_content)]
+        self.usage = usage
+
+
+class _FakeStream:
+    def __init__(self, chunks):
+        self._chunks = list(chunks)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._chunks:
+            raise StopAsyncIteration
+        return self._chunks.pop(0)
+
+
+class FakeStreamingClient(LLMClient):
+    def __init__(self, chunks):
+        super().__init__(max_retries=0)
+        self._chunks = chunks
+        self.calls: list[dict] = []
+
+    async def _acompletion(self, kwargs):
+        self.calls.append(kwargs)
+        return _FakeStream(self._chunks)
+
+
+async def test_streaming_emits_reasoning_chunks_in_order():
+    from onuw.events.bus import EventBus, ReasoningChunkEvent
+    captured: list = []
+    bus = EventBus([type("C", (), {"on_event": lambda self, e: captured.append(e)})()])
+    client = FakeStreamingClient([
+        _FakeStreamChunk(reasoning_content="First "),
+        _FakeStreamChunk(reasoning_content="second "),
+        _FakeStreamChunk(reasoning_content="third."),
+        _FakeStreamChunk(content='{"vote": "p3"}', usage=_FakeUsage(120, 30)),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    agent.bus = bus
+    target = await agent.vote("u")
+    assert target == "p3"
+    assert client.calls[0]["stream"] is True
+    assert client.calls[0]["stream_options"] == {"include_usage": True}
+    chunks = [e for e in captured if isinstance(e, ReasoningChunkEvent)]
+    assert [c.delta for c in chunks] == ["First ", "second ", "third."]
+    # Usage from the terminal chunk should accumulate.
+    assert agent.token_usage.total_tokens == 150
+
+
+async def test_non_streaming_path_when_no_bus_is_bound():
+    # No bus => no observer => streaming is not enabled.
+    client = FakeClientCapturing([
+        _FakeRespWithReasoning('{"vote": "p2"}', reasoning_content="quick"),
+    ])
+    agent = LLMAgent("p1", model="x", client=client)
+    target = await agent.vote("u")
+    assert target == "p2"
+    # We never passed stream=True down to the client when bus is absent.
+    # FakeClientCapturing doesn't record calls, so just confirm behavior:
+    # the agent succeeded without raising — no streaming machinery used.

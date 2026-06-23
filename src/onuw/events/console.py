@@ -2,13 +2,14 @@ from rich.console import Console
 
 from .bus import (
     CenterDealtEvent,
+    ContentChunkEvent,
     DeathsEvent,
     Event,
     GameEndEvent,
     GameStartEvent,
     NightActionEvent,
     NightWakeEvent,
-    ReasoningEvent,
+    ReasoningChunkEvent,
     RoleAssignedEvent,
     SpeechEvent,
     StateMutationEvent,
@@ -21,12 +22,47 @@ class ConsoleObserver(Observer):
     def __init__(self, god: bool = False, console: Console | None = None) -> None:
         self.god = god
         self.console = console or Console()
+        # Tracks the (player_id, kind) currently streaming. "kind" is
+        # either "reasoning" or "content"; switching either dimension
+        # closes the prior block and starts a new one with a fresh
+        # header line.
+        self._streaming: tuple[str, str] | None = None
 
     def on_event(self, event: Event) -> None:
+        if isinstance(event, ReasoningChunkEvent):
+            if not self.god:
+                return
+            self._render_chunk(event.player_id, event.delta, "reasoning")
+            return
+        if isinstance(event, ContentChunkEvent):
+            if not self.god:
+                return
+            self._render_chunk(event.player_id, event.delta, "content")
+            return
+        # Any non-chunk event interrupts an in-progress streaming render.
+        self._close_streaming_line()
         if event.visibility != "public" and not self.god:
             self._render_redacted(event)
             return
         self._render(event)
+
+    _STYLES = {"reasoning": "dim cyan", "content": "dim yellow"}
+    _LABELS = {"reasoning": "thinking", "content": "responding"}
+
+    def _render_chunk(self, player_id: str, delta: str, kind: str) -> None:
+        key = (player_id, kind)
+        if self._streaming != key:
+            self._close_streaming_line()
+            style = self._STYLES[kind]
+            label = self._LABELS[kind]
+            self.console.print(f"[{style}]({player_id} {label})[/{style}]")
+            self._streaming = key
+        self.console.print(delta, end="", style=self._STYLES[kind])
+
+    def _close_streaming_line(self) -> None:
+        if self._streaming is not None:
+            self.console.print("")  # newline to close the streamed block
+            self._streaming = None
 
     def _render_redacted(self, event: Event) -> None:
         name = type(event).__name__.removesuffix("Event")
@@ -61,11 +97,6 @@ class ConsoleObserver(Observer):
             self.console.print(
                 f"  [dim]{event.kind}: {event.a} <-> {event.b}[/dim]"
             )
-        elif isinstance(event, ReasoningEvent):
-            self.console.print(
-                f"[dim cyan]({event.player_id} thinking)[/dim cyan]"
-            )
-            self.console.print(f"[dim cyan]{event.text}[/dim cyan]")
         elif isinstance(event, SpeechEvent):
             self.console.print(
                 f"[green]R{event.round_idx + 1} {event.speaker_id}:[/green] "

@@ -1,31 +1,93 @@
 import asyncio
 import random
-import re
+from collections.abc import Callable
 from typing import Any
 
 from . import LLMResult, TokenUsage
 
 
-_THINK_TAG_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
+class _ThinkSplitter:
+    """Minimal stateful splitter for inline ``<think>`` tags.
 
+    One boolean of state — ``in_think`` — tells us whether the next bytes
+    belong to reasoning or content. ``feed(delta)`` returns
+    ``(content_out, reasoning_out)`` for the delta.
 
-def _split_think_tags(content: str) -> tuple[str, str]:
-    """Return ``(stripped_content, inline_reasoning)``.
-
-    Removes every ``<think>...</think>`` block from the content and
-    concatenates their bodies as the reasoning. If no tags are present,
-    returns the content unchanged and an empty reasoning string.
+    Documented edge case: a tag split exactly across a chunk boundary
+    (chunk N ends with ``<thi``, chunk N+1 starts with ``nk>``) gets
+    displayed as literal text — those few bytes route to whichever side
+    we were on. For typical LLM streaming (chunk sizes well above the
+    7-char tag length) this is rare; we trade off the buffering
+    complexity for a much simpler implementation.
     """
-    if "<think>" not in content.lower():
-        return content, ""
-    pieces: list[str] = []
 
-    def _grab(m: re.Match) -> str:
-        pieces.append(m.group(1).strip())
-        return ""
+    OPEN = "<think>"
+    CLOSE = "</think>"
 
-    stripped = _THINK_TAG_RE.sub(_grab, content).strip()
-    return stripped, "\n\n".join(p for p in pieces if p)
+    def __init__(self) -> None:
+        self.in_think = False
+
+    def feed(self, delta: str) -> tuple[str, str]:
+        c_parts: list[str] = []
+        r_parts: list[str] = []
+        i = 0
+        while i < len(delta):
+            if self.in_think:
+                idx = delta.find(self.CLOSE, i)
+                if idx == -1:
+                    r_parts.append(delta[i:])
+                    break
+                if idx > i:
+                    r_parts.append(delta[i:idx])
+                i = idx + len(self.CLOSE)
+                self.in_think = False
+            else:
+                idx = delta.find(self.OPEN, i)
+                if idx == -1:
+                    c_parts.append(delta[i:])
+                    break
+                if idx > i:
+                    c_parts.append(delta[i:idx])
+                i = idx + len(self.OPEN)
+                self.in_think = True
+        return "".join(c_parts), "".join(r_parts)
+
+
+class _SyntheticDelta:
+    """Mimics a streaming ``delta`` object so a non-streaming response
+    can be processed by the same chunk loop as a real stream."""
+
+    def __init__(self, content: str, reasoning_content: str) -> None:
+        self.content = content
+        self.reasoning_content = reasoning_content
+
+
+class _SyntheticChoice:
+    def __init__(self, delta: _SyntheticDelta) -> None:
+        self.delta = delta
+
+
+class _SyntheticChunk:
+    def __init__(self, content: str, reasoning_content: str, usage: Any) -> None:
+        self.choices = [_SyntheticChoice(_SyntheticDelta(content, reasoning_content))]
+        self.usage = usage
+
+
+async def _wrap_as_single_chunk(resp: Any):
+    """Yield exactly one synthetic chunk carrying the full non-streaming
+    response. Lets ``_process_chunks`` be the only code path."""
+    msg = resp.choices[0].message
+    content = getattr(msg, "content", None) or ""
+    reasoning = (
+        getattr(msg, "reasoning_content", None)
+        or getattr(msg, "reasoning", None)
+        or ""
+    )
+    yield _SyntheticChunk(
+        content=content,
+        reasoning_content=reasoning,
+        usage=getattr(resp, "usage", None),
+    )
 
 
 class LLMClient:
@@ -58,7 +120,10 @@ class LLMClient:
         max_tokens: int = 800,
         json_mode: bool = False,
         extra_body: dict | None = None,
-    ) -> tuple[str, TokenUsage]:
+        stream: bool = False,
+        on_reasoning_chunk: Callable[[str], None] | None = None,
+        on_content_chunk: Callable[[str], None] | None = None,
+    ) -> LLMResult:
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": [
@@ -78,11 +143,64 @@ class LLMClient:
             # Forwarded verbatim into the upstream request body — escape
             # hatch for provider-specific fields like MiniMax `thinking`.
             kwargs["extra_body"] = extra_body
-        resp = await self._call_with_backoff(kwargs)
+        if stream:
+            kwargs["stream"] = True
+            # Ensure the final chunk still carries usage info.
+            kwargs["stream_options"] = {"include_usage": True}
+            chunks = await self._call_with_backoff(kwargs)
+        else:
+            resp = await self._call_with_backoff(kwargs)
+            chunks = _wrap_as_single_chunk(resp)
+        return await self._process_chunks(
+            chunks, on_reasoning_chunk, on_content_chunk
+        )
+
+    @staticmethod
+    async def _process_chunks(
+        chunks: Any,
+        on_reasoning_chunk: Callable[[str], None] | None,
+        on_content_chunk: Callable[[str], None] | None,
+    ) -> LLMResult:
+        """Single canonical chunk processor used by both the streaming
+        and non-streaming paths. Non-streaming responses are wrapped as
+        a one-shot iterator so the same accumulate + split logic
+        applies. The ``_ThinkSplitter`` strips inline ``<think>`` tags
+        from content deltas live so callbacks never see them."""
+        splitter = _ThinkSplitter()
+        content_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        usage = TokenUsage()
+        async for chunk in chunks:
+            choices = getattr(chunk, "choices", None) or []
+            if choices:
+                delta = getattr(choices[0], "delta", None)
+                if delta is not None:
+                    rd = getattr(delta, "reasoning_content", None) or getattr(
+                        delta, "reasoning", None
+                    )
+                    if rd:
+                        reasoning_parts.append(rd)
+                        if on_reasoning_chunk is not None:
+                            on_reasoning_chunk(rd)
+                    cd = getattr(delta, "content", None)
+                    if cd:
+                        c_out, r_out = splitter.feed(cd)
+                        if c_out:
+                            content_parts.append(c_out)
+                            if on_content_chunk is not None:
+                                on_content_chunk(c_out)
+                        if r_out:
+                            reasoning_parts.append(r_out)
+                            if on_reasoning_chunk is not None:
+                                on_reasoning_chunk(r_out)
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage = TokenUsage.from_response(chunk)
+
         return LLMResult(
-            content=self._extract_content(resp),
-            usage=TokenUsage.from_response(resp),
-            reasoning=self._extract_reasoning(resp),
+            content="".join(content_parts).strip(),
+            usage=usage,
+            reasoning="".join(reasoning_parts).strip(),
         )
 
     async def _call_with_backoff(self, kwargs: dict) -> Any:
@@ -105,31 +223,6 @@ class LLMClient:
 
         return await litellm.acompletion(**kwargs)
 
-    @staticmethod
-    def _extract_content(resp: Any) -> str:
-        """Final answer with any ``<think>...</think>`` block stripped."""
-        content = resp.choices[0].message.content or ""
-        stripped, _ = _split_think_tags(content)
-        return stripped
-
-    @staticmethod
-    def _extract_reasoning(resp: Any) -> str:
-        """Pull the chain-of-thought out of reasoning-model responses.
-
-        Order of attempts:
-          1. ``message.reasoning_content`` — MiniMax-M3, DeepSeek-R1 native API.
-          2. ``message.reasoning`` — older / variant providers.
-          3. ``<think>...</think>`` block inline in ``message.content`` —
-             DeepSeek-R1 via OpenAI-compatible endpoint and similar.
-        """
-        msg = resp.choices[0].message
-        for key in ("reasoning_content", "reasoning"):
-            v = getattr(msg, key, None)
-            if v:
-                return str(v)
-        content = getattr(msg, "content", None) or ""
-        _, inline = _split_think_tags(content)
-        return inline
 
     @staticmethod
     def _is_retryable(exc: BaseException) -> bool:

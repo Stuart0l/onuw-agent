@@ -7,13 +7,14 @@ from rich.console import Console
 
 from onuw.events.bus import (
     CenterDealtEvent,
+    ContentChunkEvent,
     DeathsEvent,
     EventBus,
     GameEndEvent,
     GameStartEvent,
     NightActionEvent,
     NightWakeEvent,
-    ReasoningEvent,
+    ReasoningChunkEvent,
     RoleAssignedEvent,
     SpeechEvent,
     StateMutationEvent,
@@ -35,7 +36,8 @@ CONCRETE_EVENTS = [
     SpeechEvent,
     VotesRevealedEvent,
     DeathsEvent,
-    ReasoningEvent,
+    ReasoningChunkEvent,
+    ContentChunkEvent,
     GameEndEvent,
 ]
 

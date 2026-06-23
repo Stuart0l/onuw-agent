@@ -1,4 +1,3 @@
-from ..memory import PlayerMemory
 from .rules import SWAP_REMINDER
 
 
@@ -14,15 +13,4 @@ def build_day_speech_task(
         f"(max {max_chars} characters).\n"
         "Respond with JSON ONLY:\n"
         '{"speech": "<your public statement>"}'
-    )
-
-
-def build_day_speech_prompt(
-    memory: PlayerMemory,
-    round_idx: int,
-    total_rounds: int,
-    max_chars: int = 600,
-) -> str:
-    return memory.to_prompt_context("day") + "\n\n" + build_day_speech_task(
-        round_idx, total_rounds, max_chars
     )

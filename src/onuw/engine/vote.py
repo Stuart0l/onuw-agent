@@ -2,23 +2,19 @@ import asyncio
 
 from ..agents.base import Agent
 from ..events.bus import DeathsEvent, EventBus, VotesRevealedEvent
-from ..memory import PlayerMemory
-from ..prompts.vote import build_vote_prompt
 from ..state import GameState
 from ..types import Role
 
 
 async def run_vote(
     state: GameState,
-    memories: dict[str, PlayerMemory],
     agents: dict[str, Agent],
     bus: EventBus,
 ) -> None:
     valid_targets = list(state.seat_order)
 
     async def _vote(pid: str) -> str:
-        prompt = build_vote_prompt(memories[pid], valid_targets)
-        target = await agents[pid].vote(prompt)
+        target = await agents[pid].vote(valid_targets=valid_targets)
         if isinstance(target, str) and target in state.players:
             return target
         return pid  # fallback: vote for self
@@ -26,12 +22,16 @@ async def run_vote(
     coros = [_vote(pid) for pid in state.seat_order]
     results = await asyncio.gather(*coros)
     state.votes = dict(zip(state.seat_order, results))
+    for agent in agents.values():
+        agent.observe_votes(dict(state.votes))
     bus.emit(VotesRevealedEvent(votes=dict(state.votes)))
 
     deaths, hunter_revenge = _resolve_deaths(state)
     state.deaths = deaths
     for pid in deaths:
         state.players[pid].is_dead = True
+    for agent in agents.values():
+        agent.observe_deaths(list(deaths), list(hunter_revenge))
     bus.emit(DeathsEvent(deaths=list(deaths), hunter_revenge=list(hunter_revenge)))
 
 

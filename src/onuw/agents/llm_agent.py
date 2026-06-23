@@ -1,16 +1,37 @@
 import json
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..events.bus import ContentChunkEvent, ReasoningChunkEvent
 from ..llm.client import LLMClient
+from ..memory import PlayerMemory
+from ..prompts.day import build_day_speech_task
+from ..prompts.night import build_night_task
+from ..prompts.rules import team_summary
+from ..prompts.system import build_system_prompt
+from ..prompts.vote import build_vote_task
+from ..state import Speech
+from ..types import Role
 from ..utils.json_parse import extract_json
 from .base import Agent
 
+if TYPE_CHECKING:
+    from ..events.bus import EventBus
+
+
+_ACTION_KEY_TO_ROLE: dict[str, Role] = {
+    "werewolf_solo": Role.WEREWOLF,
+    "seer": Role.SEER,
+    "robber": Role.ROBBER,
+    "troublemaker": Role.TROUBLEMAKER,
+    "drunk": Role.DRUNK,
+}
+
 
 class LLMAgent(Agent):
-    """Default LiteLLM-backed agent. One JSON-retry on parse failure,
-    then a deterministic safe default."""
+    """Default LiteLLM-backed agent. Owns its private memory and builds
+    its own prompts. One JSON-retry on parse failure, then a
+    deterministic safe default."""
 
     def __init__(
         self,
@@ -29,24 +50,109 @@ class LLMAgent(Agent):
         self.json_mode = json_mode
         self.extra_body = extra_body or None
         self.client = client or LLMClient()
+        self._memory: PlayerMemory | None = None
+        self._system_prompt: str = ""
 
-    async def act_night(self, action_key: str, user_prompt: str) -> dict:
+    @property
+    def memory(self) -> PlayerMemory | None:
+        """Read-only view of the agent's private memory (exposed for
+        tests / debugging; the engine does not read it)."""
+        return self._memory
+
+    # ---- Lifecycle ----
+
+    def bind(
+        self,
+        *,
+        name: str,
+        seat: int,
+        dealt_role: Role,
+        persona: str | None,
+        seat_order: list[str],
+        language: str = "en",
+        bus: "EventBus | None" = None,
+    ) -> None:
+        super().bind(
+            name=name,
+            seat=seat,
+            dealt_role=dealt_role,
+            persona=persona,
+            seat_order=seat_order,
+            language=language,
+            bus=bus,
+        )
+        from ..state import PlayerState  # local import keeps engine off the import path
+
+        ps = PlayerState(
+            id=self.player_id, name=name, seat=seat,
+            original_role=dealt_role, current_role=dealt_role,
+        )
+        self._system_prompt = build_system_prompt(ps, persona)
+        self._memory = PlayerMemory(
+            player_id=self.player_id,
+            seat=seat,
+            name=name,
+            persona=persona,
+            team_summary=team_summary(dealt_role),
+            assigned_role=dealt_role,
+        )
+
+    # ---- Observations ----
+
+    def observe_night(self, step: str, text: str, structured: dict) -> None:
+        if self._memory is not None:
+            self._memory.add_observation(step, text, structured)
+
+    def observe_speech(
+        self, round_idx: int, speaker_id: str, text: str
+    ) -> None:
+        if self._memory is not None:
+            self._memory.add_speech(
+                Speech(round_idx=round_idx, speaker_id=speaker_id, text=text)
+            )
+
+    # observe_votes / observe_deaths use the inherited no-op defaults
+    # for now; the LLM agent can read recent history from the speech
+    # log it already accumulated.
+
+    # ---- Decisions ----
+
+    async def act_night(
+        self, action_key: str, valid_targets: list[str]
+    ) -> dict:
+        role = _ACTION_KEY_TO_ROLE.get(action_key)
+        if role is None or self._memory is None:
+            return {}
+        task = build_night_task(role, self.player_id, self.seat_order)
+        user_prompt = self._memory.to_prompt_context("night") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict):
             return parsed
         return {}
 
-    async def speak(self, round_idx: int, user_prompt: str) -> str:
+    async def speak(
+        self, round_idx: int, total_rounds: int, max_chars: int
+    ) -> str:
+        if self._memory is None:
+            return ""
+        task = build_day_speech_task(round_idx, total_rounds, max_chars)
+        user_prompt = self._memory.to_prompt_context("day") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict) and isinstance(parsed.get("speech"), str):
             return parsed["speech"].strip()
-        return "I have nothing to add."
+        return ""
 
-    async def vote(self, user_prompt: str) -> str:
+    async def vote(self, valid_targets: list[str]) -> str:
+        if self._memory is None:
+            return self.player_id
+        task = build_vote_task(valid_targets)
+        user_prompt = self._memory.to_prompt_context("vote") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict) and isinstance(parsed.get("vote"), str):
             return parsed["vote"]
         return self.player_id
+
+    # ---- LLM plumbing ----
 
     async def _ask_json(self, user_prompt: str) -> Any | None:
         """Send a completion; one retry with a strict reminder if the
@@ -94,7 +200,7 @@ class LLMAgent(Agent):
             )
 
         result = await self.client.complete(
-            system=self.system_prompt,
+            system=self._system_prompt,
             user=user_prompt,
             model=self.model,
             temperature=self.temperature,

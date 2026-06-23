@@ -10,9 +10,6 @@ from ..events.bus import (
     GameStartEvent,
     RoleAssignedEvent,
 )
-from ..memory import PlayerMemory
-from ..prompts.rules import team_summary
-from ..prompts.system import build_system_prompt
 from ..state import CenterCard, GameState, PlayerState
 
 
@@ -21,10 +18,12 @@ def deal(
     bus: EventBus,
     agent_factory: AgentFactory,
     game_id: str | None = None,
-) -> tuple[GameState, dict[str, PlayerMemory], dict[str, Agent]]:
+) -> tuple[GameState, dict[str, Agent]]:
     """Set up the game: shuffle the role pool, deal cards to players and
-    center, build per-player memories, instantiate one Agent per seat via
-    the factory, and emit the start-of-game event stream.
+    center, instantiate one Agent per seat via the factory, bind each
+    with its seat facts, and emit the start-of-game event stream.
+
+    Agents own their private memory and prompt rendering.
     """
     if game_id is None:
         game_id = uuid.uuid4().hex[:8]
@@ -36,7 +35,6 @@ def deal(
     n_players = len(cfg.players)
     player_states: dict[str, PlayerState] = {}
     seat_order: list[str] = []
-    memories: dict[str, PlayerMemory] = {}
     agents: dict[str, Agent] = {}
 
     for i, pcfg in enumerate(cfg.players):
@@ -50,21 +48,19 @@ def deal(
         )
         player_states[pcfg.id] = ps
         seat_order.append(pcfg.id)
-        memories[pcfg.id] = PlayerMemory(
-            player_id=pcfg.id,
-            seat=i,
+        agents[pcfg.id] = agent_factory(pcfg)
+
+    # Bind every agent now that we know the full seat order.
+    for i, pcfg in enumerate(cfg.players):
+        agents[pcfg.id].bind(
             name=pcfg.name,
+            seat=i,
+            dealt_role=player_states[pcfg.id].original_role,
             persona=pcfg.persona,
-            team_summary=team_summary(role),
-            assigned_role=role,
-        )
-        agent = agent_factory(pcfg)
-        agent.bind(
-            system_prompt=build_system_prompt(ps, pcfg.persona),
-            memory=memories[pcfg.id],
+            seat_order=seat_order,
+            language="en",
             bus=bus,
         )
-        agents[pcfg.id] = agent
 
     center = [CenterCard(index=i, role=pool[n_players + i]) for i in range(3)]
 
@@ -97,4 +93,4 @@ def deal(
         bus.emit(RoleAssignedEvent(player_id=pid, role=ps.original_role))
     bus.emit(CenterDealtEvent(cards=[c.role for c in center]))
 
-    return state, memories, agents
+    return state, agents

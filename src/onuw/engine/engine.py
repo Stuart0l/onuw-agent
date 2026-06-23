@@ -6,7 +6,6 @@ from ..agents.base import Agent
 from ..config import GameConfig
 from ..events.bus import EventBus, GameEndEvent
 from ..llm import TokenUsage
-from ..memory import PlayerMemory
 from ..state import GameState
 from ..types import Team
 from .day import run_day
@@ -36,18 +35,17 @@ class GameEngine:
         self.agent_factory = agent_factory
         self.game_id = game_id or uuid.uuid4().hex[:8]
         self.state: GameState | None = None
-        self.memories: dict[str, PlayerMemory] | None = None
         self.agents: dict[str, Agent] | None = None
 
     async def run(self) -> GameResult:
-        state, memories, agents = deal(
+        state, agents = deal(
             self.cfg, self.bus, self.agent_factory, self.game_id
         )
-        self.state, self.memories, self.agents = state, memories, agents
+        self.state, self.agents = state, agents
         try:
-            await run_night(state, memories, agents, self.bus)
-            await run_day(state, memories, agents, self.bus)
-            await run_vote(state, memories, agents, self.bus)
+            await run_night(state, agents, self.bus)
+            await run_day(state, agents, self.bus)
+            await run_vote(state, agents, self.bus)
             winners = resolve_winners(state)
             state.winners = winners
             self.bus.emit(

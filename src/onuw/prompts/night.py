@@ -1,4 +1,3 @@
-from ..memory import PlayerMemory
 from ..types import Role
 
 
@@ -55,14 +54,3 @@ def build_night_task(role: Role, self_id: str, seat_order: list[str]) -> str:
             '{"action": "swap_center", "index": <0|1|2>}'
         )
     raise ValueError(f"No interactive night task defined for role {role}")
-
-
-def build_night_prompt(
-    memory: PlayerMemory,
-    role: Role,
-    self_id: str,
-    seat_order: list[str],
-) -> str:
-    return memory.to_prompt_context("night") + "\n\n" + build_night_task(
-        role, self_id, seat_order
-    )

@@ -1,4 +1,3 @@
-from ..memory import PlayerMemory
 from .rules import SWAP_REMINDER
 
 
@@ -13,7 +12,3 @@ def build_vote_task(valid_targets: list[str]) -> str:
         "Respond with JSON ONLY:\n"
         '{"vote": "<player_id>", "rationale": "<one short sentence (private)>"}'
     )
-
-
-def build_vote_prompt(memory: PlayerMemory, valid_targets: list[str]) -> str:
-    return memory.to_prompt_context("vote") + "\n\n" + build_vote_task(valid_targets)

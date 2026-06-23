@@ -18,7 +18,6 @@ class PlayerMemory:
     seat: int
     name: str
     persona: str | None
-    team_summary: str
     assigned_role: Role
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
@@ -56,7 +55,6 @@ class PlayerMemory:
         return "\n\n".join(
             [
                 self._identity_section(),
-                self._team_section(),
                 self._observations_section(),
                 self._discussion_section(),
                 self._beliefs_section(),
@@ -71,9 +69,6 @@ class PlayerMemory:
             f"You are {self.name} (seat {self.seat}, id {self.player_id}). "
             f"Your dealt role at the start of the night was: {self.assigned_role.value}."
         )
-
-    def _team_section(self) -> str:
-        return "== YOUR TEAM ==\n" + self.team_summary
 
     def _observations_section(self) -> str:
         header = "== WHAT YOU LEARNED DURING THE NIGHT =="

@@ -38,84 +38,39 @@ OUTPUT_FORMAT_PREAMBLE = (
 
 
 ROLE_ABILITY_BLOCKS: dict[Role, str] = {
-    Role.WEREWOLF: """== YOUR ROLE: WEREWOLF ==
-At night you wake first and see any other Werewolves. If you are the ONLY Werewolf in play, you may peek at one of the three center cards. You are on the Werewolf team; your team wins as long as no Werewolf is killed. You should generally hide that you are a Werewolf during the day.""",
+    Role.WEREWOLF: """== WEREWOLF (Werewolf team) ==
+At night they wake first and see any other Werewolves. If they are the ONLY Werewolf in play, they may peek at one of the three center cards. Their team wins as long as no Werewolf is killed. They should generally hide that they are a Werewolf during the day.""",
 
-    Role.MINION: """== YOUR ROLE: MINION ==
-At night, after the Werewolves go back to sleep, you wake and see who the Werewolves are. The Werewolves do NOT know who you are. You are on the Werewolf team. Your team wins as long as no Werewolf is killed — even if YOU are killed. If all Werewolves are in the center, you win as long as no non-Minion player dies.""",
+    Role.MINION: """== MINION (Werewolf team) ==
+At night, after the Werewolves go back to sleep, they wake and see who the Werewolves are. The Werewolves do NOT know who they are. Their team wins as long as no Werewolf is killed — even if THEY are killed. If all Werewolves are in the center, they win as long as no non-Minion player dies.""",
 
-    Role.MASON: """== YOUR ROLE: MASON ==
-At night you wake and see your fellow Mason (or learn you are alone). You are on the village team and have no other special action. Knowing a fellow Mason is a strong source of mutual trust during the day.""",
+    Role.MASON: """== MASON (Village team) ==
+At night they wake and see their fellow Mason (or learn they are alone). They have no other special action. Knowing a fellow Mason is a strong source of mutual trust during the day.""",
 
-    Role.SEER: """== YOUR ROLE: SEER ==
-At night you may EITHER look at one other player's card OR look at two of the three center cards. You learn the role(s) you saw. You are on the village team.""",
+    Role.SEER: """== SEER (Village team) ==
+At night they may EITHER look at one other player's card OR look at two of the three center cards. They learn the role(s) they saw.""",
 
-    Role.ROBBER: """== YOUR ROLE: ROBBER ==
-At night you may swap your card with one other player's card, then look at the card you stole. Your CURRENT role becomes the role you stole; you win with whichever team that new role belongs to. NOTE: you do NOT gain the new role's night action — you have already acted as the Robber.""",
+    Role.ROBBER: """== ROBBER (Village team initially; switches to whichever team the stolen card belongs to) ==
+At night they may swap their card with one other player's card, then look at the card they stole. Their CURRENT role becomes the role they stole; they win with whichever team that new role belongs to. NOTE: they do NOT gain the new role's night action — they have already acted as the Robber.""",
 
-    Role.TROUBLEMAKER: """== YOUR ROLE: TROUBLEMAKER ==
-At night you may swap the cards of two OTHER players (not your own). You do NOT look at the cards you swap. Your own role does not change. You are on the village team.""",
+    Role.TROUBLEMAKER: """== TROUBLEMAKER (Village team) ==
+At night they may swap the cards of two OTHER players (not their own). They do NOT look at the cards they swap. Their own role does not change.""",
 
-    Role.DRUNK: """== YOUR ROLE: DRUNK ==
-At night you exchange your card with one of the three center cards WITHOUT looking. You do NOT learn your new role. Your CURRENT role becomes whatever center card you took; you win with that team even though you don't know what it is.""",
+    Role.DRUNK: """== DRUNK (Village team initially; switches to whichever team the unknown center card belongs to) ==
+At night they exchange their card with one of the three center cards WITHOUT looking. They do NOT learn their new role. Their CURRENT role becomes whatever center card they took; they win with that team even though they don't know what it is.""",
 
-    Role.INSOMNIAC: """== YOUR ROLE: INSOMNIAC ==
-At night you wake LAST and look at your OWN card to see your CURRENT role — which may differ from the role you were dealt if someone swapped your card during the night. You are on the village team.""",
+    Role.INSOMNIAC: """== INSOMNIAC (Village team) ==
+At night they wake LAST and look at their OWN card to see their CURRENT role — which may differ from the role they were dealt if someone swapped their card during the night.""",
 
-    Role.VILLAGER: """== YOUR ROLE: VILLAGER ==
-You have no night action. You are on the village team. Your goal is to identify and kill at least one Werewolf through discussion and voting.""",
+    Role.VILLAGER: """== VILLAGER (Village team) ==
+They have no night action. Their goal is to identify and kill at least one Werewolf through discussion and voting.""",
 
-    Role.TANNER: """== YOUR ROLE: TANNER ==
-You have no night action. You are a one-player team. You WIN if and only if you are killed during the vote. You should act suspicious enough to draw votes — but not so obviously that no one believes you.""",
+    Role.TANNER: """== TANNER (solo — only the Tanner) ==
+They have no night action. They WIN if and only if they are killed during the vote. They should act suspicious enough to draw votes — but not so obviously that no one believes them.""",
 
-    Role.HUNTER: """== YOUR ROLE: HUNTER ==
-You have no night action. You are on the village team. If you are killed during the vote, the player you voted for ALSO dies. Telegraphing this can deter opponents from voting for you.""",
+    Role.HUNTER: """== HUNTER (Village team) ==
+They have no night action. If they are killed during the vote, the player they voted for ALSO dies. Telegraphing this can deter opponents from voting for them.""",
 }
-
-
-def team_summary(role: Role) -> str:
-    """One-liner team / win-condition reminder for the user prompt.
-
-    The full all-teams win conditions live in the system prompt; this
-    summary is the only team-affiliation content the user prompt needs
-    to carry per turn.
-    """
-    if role == Role.WEREWOLF:
-        return (
-            "You are on the WEREWOLF team. Win condition: at least one Werewolf "
-            "must exist in play AND no Werewolf may be killed."
-        )
-    if role == Role.MINION:
-        return (
-            "You are on the WEREWOLF team (Minion). Win: no Werewolf dies — you "
-            "may die yourself. Special: if all Werewolves are in the center, "
-            "you win iff no non-Minion player dies."
-        )
-    if role == Role.TANNER:
-        return (
-            "You are the TANNER — a one-player team. Win condition: YOU must be "
-            "killed during the vote."
-        )
-    if role == Role.ROBBER:
-        return (
-            "You started on the VILLAGE team. If you robbed a card during the "
-            "night, your CURRENT role is now that stolen role and your team "
-            "becomes that role's team — see your night observation."
-        )
-    if role == Role.DRUNK:
-        return (
-            "You started on the VILLAGE team. You swapped with an unknown center "
-            "card; your CURRENT role and team at end of night are UNKNOWN to you "
-            "until reveal."
-        )
-    # Village team: Villager, Mason, Seer, Troublemaker, Insomniac, Hunter.
-    # Note: Troublemaker is village — only swaps OTHER players' cards; its own
-    # card stays Troublemaker, so its current_role and team never change.
-    return (
-        "You are on the VILLAGE team. Win condition: at least one Werewolf must "
-        "die during the vote. Special: if no Werewolves are in play, the village "
-        "wins iff no one dies."
-    )
 
 
 def swap_reminder(dealt_role: Role) -> str:

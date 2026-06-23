@@ -37,6 +37,7 @@ class Agent(ABC):
         self.dealt_role: Role | None = None
         self.persona: str | None = None
         self.seat_order: list[str] = []
+        self.role_pool: list[Role] = []
         self.language: str = "en"
         self.bus: "EventBus | None" = None
         # Accumulates token usage across all LLM calls this agent makes
@@ -51,6 +52,7 @@ class Agent(ABC):
         dealt_role: Role,
         persona: str | None,
         seat_order: list[str],
+        role_pool: list[Role] | None = None,
         language: str = "en",
         bus: "EventBus | None" = None,
     ) -> None:
@@ -62,6 +64,7 @@ class Agent(ABC):
         self.dealt_role = dealt_role
         self.persona = persona
         self.seat_order = seat_order
+        self.role_pool = list(role_pool or [])
         self.language = language
         self.bus = bus
 

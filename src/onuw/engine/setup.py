@@ -58,6 +58,7 @@ def deal(
             dealt_role=player_states[pcfg.id].original_role,
             persona=pcfg.persona,
             seat_order=seat_order,
+            role_pool=list(cfg.role_pool),
             language="en",
             bus=bus,
         )

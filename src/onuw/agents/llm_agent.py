@@ -7,7 +7,6 @@ from ..llm.client import LLMClient
 from ..memory import PlayerMemory
 from ..prompts.day import build_day_speech_task
 from ..prompts.night import build_night_task
-from ..prompts.rules import team_summary
 from ..prompts.system import build_system_prompt
 from ..prompts.vote import build_vote_task
 from ..state import Speech
@@ -69,6 +68,7 @@ class LLMAgent(Agent):
         dealt_role: Role,
         persona: str | None,
         seat_order: list[str],
+        role_pool: list[Role] | None = None,
         language: str = "en",
         bus: "EventBus | None" = None,
     ) -> None:
@@ -78,6 +78,7 @@ class LLMAgent(Agent):
             dealt_role=dealt_role,
             persona=persona,
             seat_order=seat_order,
+            role_pool=role_pool,
             language=language,
             bus=bus,
         )
@@ -87,13 +88,14 @@ class LLMAgent(Agent):
             id=self.player_id, name=name, seat=seat,
             original_role=dealt_role, current_role=dealt_role,
         )
-        self._system_prompt = build_system_prompt(ps, persona)
+        self._system_prompt = build_system_prompt(
+            ps, persona, role_pool=self.role_pool
+        )
         self._memory = PlayerMemory(
             player_id=self.player_id,
             seat=seat,
             name=name,
             persona=persona,
-            team_summary=team_summary(dealt_role),
             assigned_role=dealt_role,
         )
 

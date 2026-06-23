@@ -4,7 +4,6 @@ from onuw.prompts.rules import (
     OUTPUT_FORMAT_PREAMBLE,
     ROLE_ABILITY_BLOCKS,
     swap_reminder,
-    team_summary,
 )
 from onuw.prompts.system import build_system_prompt
 from onuw.prompts.vote import build_vote_task
@@ -28,7 +27,6 @@ def _memory(role: Role = Role.SEER, persona: str | None = None) -> PlayerMemory:
         seat=1,
         name="Alice",
         persona=persona,
-        team_summary=team_summary(role),
         assigned_role=role,
     )
 
@@ -43,11 +41,13 @@ def test_to_prompt_context_has_expected_sections_when_empty():
     out = _memory().to_prompt_context("night")
     for header in [
         "== YOUR IDENTITY ==",
-        "== YOUR TEAM ==",
         "== WHAT YOU LEARNED DURING THE NIGHT ==",
         "== PUBLIC DISCUSSION SO FAR ==",
     ]:
         assert header in out
+    # YOUR TEAM section is intentionally absent — the agent derives its
+    # team from the role abilities + win conditions in the system prompt.
+    assert "== YOUR TEAM ==" not in out
     assert "Nothing." in out
     assert "No discussion yet." in out
 
@@ -112,34 +112,6 @@ def test_system_prompt_contains_required_layers():
     assert "GAME RULES" in out
     assert "WIN CONDITIONS" in out
     assert OUTPUT_FORMAT_PREAMBLE in out
-
-
-# ----- team_summary -----
-
-def test_team_summary_werewolf_and_minion_are_werewolf_team():
-    assert "WEREWOLF team" in team_summary(Role.WEREWOLF)
-    assert "WEREWOLF team" in team_summary(Role.MINION)
-
-
-def test_team_summary_village_roles_say_village_team():
-    for r in (Role.VILLAGER, Role.MASON, Role.SEER, Role.INSOMNIAC,
-              Role.HUNTER, Role.TROUBLEMAKER):
-        assert "VILLAGE team" in team_summary(r), r
-
-
-def test_team_summary_tanner_is_solo_team():
-    assert "TANNER" in team_summary(Role.TANNER)
-
-
-def test_team_summary_robber_signposts_team_change_from_steal():
-    out = team_summary(Role.ROBBER)
-    assert "stolen role" in out or "stolen" in out
-    assert "night observation" in out
-
-
-def test_team_summary_drunk_signposts_unknown_team():
-    out = team_summary(Role.DRUNK)
-    assert "UNKNOWN" in out
 
 
 # ----- swap reminder -----

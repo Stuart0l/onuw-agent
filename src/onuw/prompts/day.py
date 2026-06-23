@@ -1,5 +1,5 @@
 from ..types import Role
-from .rules import swap_reminder
+from .rules import thinking_guide_day
 
 
 def build_day_speech_task(
@@ -8,7 +8,7 @@ def build_day_speech_task(
     max_chars: int = 600,
     dealt_role: Role | None = None,
 ) -> str:
-    prefix = (swap_reminder(dealt_role) + "\n\n") if dealt_role else ""
+    prefix = (thinking_guide_day(dealt_role) + "\n\n") if dealt_role else ""
     return (
         prefix
         + f"== YOUR TURN: DAY DISCUSSION (round {round_idx + 1} of {total_rounds}) ==\n"
@@ -17,9 +17,9 @@ def build_day_speech_task(
         "questions. Aim for 1-4 sentences "
         f"(max {max_chars} characters).\n"
         "\n"
-        "Before crafting your speech, update belief_state with your current "
-        "judgment of every player you have an opinion on. ONE LINE per player, "
-        "brief. Use it to stop re-deriving who is who from scratch each round.\n"
+        "Update belief_state with your current judgment of every player you "
+        "have an opinion on — ONE LINE per player, brief. It is PRIVATE; "
+        "only you see it next turn.\n"
         "\n"
         "Respond with JSON ONLY:\n"
         '{"belief_state": {"<player_id>": "<one-line current belief>", ...}, '

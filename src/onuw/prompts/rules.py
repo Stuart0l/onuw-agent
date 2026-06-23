@@ -73,54 +73,81 @@ They have no night action. If they are killed during the vote, the player they v
 }
 
 
-def swap_reminder(dealt_role: Role) -> str:
-    """Per-role decision rule that replaces the previous open-ended swap
-    reminder.
-
-    Two "certain" roles get a flat assertion (no need to reason about
-    current role): Troublemaker and Insomniac. Everyone else must reason
-    about their current role first, then commit once per turn — this
-    prevents the observed failure mode where seats spent thousands of
-    tokens flip-flopping between "I am still my dealt role" and "I was
-    swapped."
-    """
+def _commit_role_rule(dealt_role: Role) -> str:
+    """Role-specific text inserted into STEP 3 of the day thinking guide."""
     if dealt_role == Role.TROUBLEMAKER:
         return (
-            "== YOUR CURRENT ROLE ==\n"
             "You ARE still the Troublemaker. Your card is untouched — "
-            "Troublemakers only swap OTHER players, never themselves. "
-            "And Robbers will not swap with you. Stick with VILLAGE "
-            "team's win condition."
+            "Troublemakers only swap OTHER players, and Robbers will not "
+            "swap with you. Stick with VILLAGE team's win condition."
         )
     if dealt_role == Role.INSOMNIAC:
         return (
-            "== YOUR CURRENT ROLE ==\n"
-            "Your Insomniac wake observation IS your current role — trust "
-            "it. You wake up last so no one can swap with you. Stick with "
+            "Trust your Insomniac wake observation — it IS your current "
+            "role. You wake last; no one can swap with you. Stick with "
             "VILLAGE team's win condition."
         )
     if dealt_role == Role.ROBBER:
         return (
-            "== YOUR CURRENT ROLE ==\n"
-            "Your night observation already shows you the card you stole "
-            "— treat that as your CURRENT role and use its team's win "
-            "condition. The only thing that could change this is the "
-            "Troublemaker (wakes after you); only revise this if a "
-            "Troublemaker credibly claims to have swapped your card. "
-            "Otherwise act as the role you saw."
+            "Your night observation shows the card you stole — treat "
+            "that as your CURRENT role. The only thing that can change "
+            "this is the Troublemaker (wakes after you); revise only if "
+            "a Troublemaker credibly claims to have swapped your card."
         )
-    # All other roles: reason, then commit.
     return (
-        "== YOUR CURRENT ROLE — REASON, THEN COMMIT ==\n"
         f"You were dealt {dealt_role.value}. Your card may have been "
-        "swapped during the night by a Robber or Troublemaker, so your "
-        "CURRENT role may differ from your dealt role.\n"
-        "Step 1: Weigh the evidence (your night observation + any claims "
-        "so far). Pick the SINGLE most likely current-role for yourself.\n"
-        "Step 2: Commit to that interpretation for the rest of this turn. "
-        "Use the corresponding team's win condition.\n"
-        "Step 3: Choose the highest-EV action under your committed "
-        "interpretation.\n"
-        "DO NOT revisit your interpretation after committing — looping "
-        "wastes reasoning and produces worse decisions."
+        "swapped by a Robber or Troublemaker. Weigh your night "
+        "observation and any claims so far. Pick the SINGLE most likely "
+        "current role."
     )
+
+
+def thinking_guide_day(dealt_role: Role) -> str:
+    """Numbered text-based reasoning guide prepended to the day-speech
+    task. Channels the model's reasoning trace through a fixed sequence
+    of steps so it doesn't loop on trust assessments, role re-derivation,
+    or strategy second-guessing.
+    """
+    return (
+        "== THINKING GUIDE — follow IN ORDER, then output JSON ==\n"
+        "Walk through these steps once. Each builds on the previous. "
+        "After STEP 6, write the JSON and stop. Do NOT loop back to "
+        "earlier steps; if you find yourself reconsidering, you have "
+        "already made your decision — proceed.\n"
+        "\n"
+        "  STEP 1 — RECALL: state your dealt role and your literal "
+        "night observations (facts only, no interpretation).\n"
+        "\n"
+        "  STEP 2 — CLAIMS: for each player who has spoken so far, ONE "
+        "LINE each — trust / distrust / neutral, with the single "
+        "strongest reason.\n"
+        "\n"
+        "  STEP 3 — COMMIT CURRENT ROLE:\n"
+        f"           {_commit_role_rule(dealt_role)}\n"
+        "           Pick ONE role you currently hold. This is FINAL.\n"
+        "\n"
+        "  STEP 4 — COMMIT TEAM: village / werewolf / tanner — derived "
+        "from step 3.\n"
+        "\n"
+        "  STEP 5 — STRATEGY: in ONE sentence, what you push for in "
+        "this speech.\n"
+        "\n"
+        "  STEP 6 — WRITE THE JSON BELOW. Do not reconsider steps 1-5."
+    )
+
+
+THINKING_GUIDE_VOTE = (
+    "== THINKING GUIDE — follow IN ORDER, then output JSON ==\n"
+    "Walk through these steps once. After STEP 4, write the JSON and "
+    "stop. Do NOT loop back to earlier steps.\n"
+    "\n"
+    "  STEP 1 — RECALL: your current role and team (already committed "
+    "during the day phase).\n"
+    "\n"
+    "  STEP 2 — RANK SUSPECTS: each living player, ONE LINE — strongest "
+    "single piece of evidence.\n"
+    "\n"
+    "  STEP 3 — PICK: the single highest-EV vote for your team. Final.\n"
+    "\n"
+    "  STEP 4 — WRITE: the JSON below. Do not reconsider steps 1-3."
+)

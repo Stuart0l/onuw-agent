@@ -3,7 +3,6 @@ from onuw.prompts.day import build_day_speech_task
 from onuw.prompts.rules import (
     OUTPUT_FORMAT_PREAMBLE,
     ROLE_ABILITY_BLOCKS,
-    swap_reminder,
 )
 from onuw.prompts.system import build_system_prompt
 from onuw.prompts.vote import build_vote_task
@@ -103,27 +102,37 @@ def test_system_prompt_contains_required_layers():
     assert OUTPUT_FORMAT_PREAMBLE in out
 
 
-# ----- swap reminder -----
+# ----- thinking guide -----
 
-def test_day_task_includes_swap_reminder():
-    # Without dealt_role the swap reminder is omitted.
-    assert "YOUR CURRENT ROLE" not in build_day_speech_task(0, 3, max_chars=600)
-    # With dealt_role the role-specific commit instructions are included.
+def test_day_task_has_thinking_guide_when_dealt_role_given():
+    # Without dealt_role the guide is omitted (older callsites).
+    assert "THINKING GUIDE" not in build_day_speech_task(0, 3, max_chars=600)
+    # With dealt_role the numbered guide is prepended.
     out = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.WEREWOLF)
-    assert "YOUR CURRENT ROLE" in out
-    assert "DO NOT revisit" in out
-    # Certain roles get a flat assertion, not the reasoning prompt.
+    assert "THINKING GUIDE" in out
+    assert "STEP 1 — RECALL" in out
+    assert "STEP 3 — COMMIT CURRENT ROLE" in out
+    assert "STEP 6 — WRITE THE JSON" in out
+    assert "Do NOT loop back" in out
+
+
+def test_day_guide_injects_role_specific_commit_rule():
     out_tm = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.TROUBLEMAKER)
     assert "still the Troublemaker" in out_tm
     out_ins = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.INSOMNIAC)
-    assert "Insomniac wake observation IS your current role" in out_ins
+    assert "Insomniac wake observation" in out_ins
+    out_rob = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.ROBBER)
+    assert "the card you stole" in out_rob
+    out_other = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.SEER)
+    assert "may have been swapped" in out_other
 
 
-def test_vote_task_includes_swap_reminder():
-    assert "YOUR CURRENT ROLE" not in build_vote_task(["p1", "p2", "p3"])
-    out = build_vote_task(["p1", "p2", "p3"], dealt_role=Role.SEER)
-    assert "YOUR CURRENT ROLE" in out
-    assert "DO NOT revisit" in out
+def test_vote_task_includes_thinking_guide():
+    out = build_vote_task(["p1", "p2", "p3"])
+    assert "THINKING GUIDE" in out
+    assert "STEP 1 — RECALL" in out
+    assert "STEP 3 — PICK" in out
+    assert "STEP 4 — WRITE" in out
 
 
 # ----- belief state -----

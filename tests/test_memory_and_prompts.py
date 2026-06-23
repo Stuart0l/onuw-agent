@@ -163,3 +163,59 @@ def test_vote_task_includes_swap_reminder():
     out = build_vote_task(["p1", "p2", "p3"], dealt_role=Role.SEER)
     assert "YOUR CURRENT ROLE" in out
     assert "DO NOT revisit" in out
+
+
+# ----- belief state -----
+
+def test_update_beliefs_accepts_clean_dict():
+    m = _memory()
+    m.update_beliefs({"p2": "likely Werewolf", "p3": "Mason, trusted"})
+    assert m.belief_state == {"p2": "likely Werewolf", "p3": "Mason, trusted"}
+
+
+def test_update_beliefs_rejects_non_dict():
+    m = _memory()
+    m.update_beliefs("not a dict")  # type: ignore[arg-type]
+    assert m.belief_state == {}
+    m.update_beliefs(["nope"])  # type: ignore[arg-type]
+    assert m.belief_state == {}
+
+
+def test_update_beliefs_skips_non_string_values_and_empty_strings():
+    m = _memory()
+    m.update_beliefs({"p1": "ok", "p2": 5, "p3": "  ", "p4": "fine"})
+    assert m.belief_state == {"p1": "ok", "p4": "fine"}
+
+
+def test_update_beliefs_caps_long_entries_at_200_chars():
+    m = _memory()
+    long = "x" * 500
+    m.update_beliefs({"p1": long})
+    assert len(m.belief_state["p1"]) == 200
+
+
+def test_update_beliefs_replaces_full_dict_not_merges():
+    m = _memory()
+    m.update_beliefs({"p1": "first"})
+    m.update_beliefs({"p2": "second"})
+    assert m.belief_state == {"p2": "second"}  # p1 dropped
+
+
+def test_beliefs_section_empty_renders_nothing_yet():
+    out = _memory().to_prompt_context("day")
+    assert "== YOUR PRIVATE BELIEFS" in out
+    assert "Nothing yet." in out
+
+
+def test_beliefs_section_renders_entries():
+    m = _memory()
+    m.update_beliefs({"p2": "likely Werewolf", "p3": "Mason"})
+    out = m.to_prompt_context("day")
+    assert "== YOUR PRIVATE BELIEFS" in out
+    assert "- p2: likely Werewolf" in out
+    assert "- p3: Mason" in out
+
+
+def test_day_task_schema_mentions_belief_state():
+    out = build_day_speech_task(0, 3, max_chars=600)
+    assert "belief_state" in out

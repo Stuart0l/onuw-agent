@@ -23,6 +23,10 @@ class PlayerMemory:
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
     own_speeches_drafts: list[str] = field(default_factory=list)
+    # Private self-memory: player_id → one-line current belief. Replaced
+    # in full each speak() turn so the agent always re-states its
+    # current view, never accumulates stale entries.
+    belief_state: dict[str, str] = field(default_factory=dict)
 
     def add_observation(self, step: str, text: str, structured: dict) -> None:
         self.night_observations.append(
@@ -32,6 +36,22 @@ class PlayerMemory:
     def add_speech(self, speech: Speech) -> None:
         self.conversation.append(speech)
 
+    def update_beliefs(self, raw: object) -> None:
+        """Replace belief_state with the agent's latest dict. Drops non-
+        dict input, non-string values, empty strings; caps each entry at
+        200 chars to bound prompt growth."""
+        if not isinstance(raw, dict):
+            return
+        cleaned: dict[str, str] = {}
+        for pid, val in raw.items():
+            if not isinstance(pid, str) or not isinstance(val, str):
+                continue
+            s = val.strip()
+            if not s:
+                continue
+            cleaned[pid] = s[:200]
+        self.belief_state = cleaned
+
     def to_prompt_context(self, phase: Literal["night", "day", "vote"]) -> str:
         return "\n\n".join(
             [
@@ -39,6 +59,7 @@ class PlayerMemory:
                 self._team_section(),
                 self._observations_section(),
                 self._discussion_section(),
+                self._beliefs_section(),
             ]
         )
 
@@ -76,3 +97,12 @@ class PlayerMemory:
             for sp in rounds[r]:
                 parts.append(f'  - {sp.speaker_id}: "{sp.text}"')
         return "\n".join(parts)
+
+    def _beliefs_section(self) -> str:
+        header = "== YOUR PRIVATE BELIEFS (from your last turn; only you see this) =="
+        if not self.belief_state:
+            return f"{header}\nNothing yet."
+        body = "\n".join(
+            f"- {pid}: {belief}" for pid, belief in self.belief_state.items()
+        )
+        return f"{header}\n{body}"

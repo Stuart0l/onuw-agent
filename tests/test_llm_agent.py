@@ -367,3 +367,47 @@ async def test_non_streaming_path_when_no_bus_is_bound():
     agent = _bind(LLMAgent("p1", model="x", client=client))
     target = await agent.vote(valid_targets=SEAT_ORDER)
     assert target == "p2"
+
+
+# ----- belief state extraction -----
+
+async def test_speak_extracts_belief_state_into_memory():
+    client = FakeClient([
+        '{"belief_state": {"p2": "likely Werewolf", "p3": "Mason"}, '
+        '"speech": "I think p2 is the wolf."}'
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client))
+    text = await agent.speak(round_idx=0, total_rounds=3, max_chars=600)
+    assert text == "I think p2 is the wolf."
+    assert agent.memory is not None
+    assert agent.memory.belief_state == {
+        "p2": "likely Werewolf",
+        "p3": "Mason",
+    }
+
+
+async def test_speak_without_belief_state_in_response_preserves_prior_state():
+    # First call sets beliefs; second call's response has no belief_state.
+    client = FakeClient([
+        '{"belief_state": {"p2": "wolf"}, "speech": "round 1 speech"}',
+        '{"speech": "round 2 speech"}',
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client))
+    await agent.speak(0, 3, 600)
+    await agent.speak(1, 3, 600)
+    assert agent.memory.belief_state == {"p2": "wolf"}
+
+
+async def test_belief_state_renders_into_next_prompt():
+    # First speak() seeds beliefs. The user prompt sent on the SECOND
+    # speak() should include the previously-stored belief.
+    client = FakeClient([
+        '{"belief_state": {"p2": "bluffing Robber"}, "speech": "hi"}',
+        '{"speech": "round 2 reply"}',
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client))
+    await agent.speak(0, 3, 600)
+    await agent.speak(1, 3, 600)
+    second_user_msg = client.calls[1]["messages"][1]["content"]
+    assert "== YOUR PRIVATE BELIEFS" in second_user_msg
+    assert "bluffing Robber" in second_user_msg

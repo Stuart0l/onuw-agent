@@ -140,8 +140,13 @@ class LLMAgent(Agent):
         )
         user_prompt = self._memory.to_prompt_context("day") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
-        if isinstance(parsed, dict) and isinstance(parsed.get("speech"), str):
-            return parsed["speech"].strip()
+        if isinstance(parsed, dict):
+            # Update beliefs BEFORE returning the speech, so any later
+            # prompt rendering sees the freshest state.
+            if isinstance(parsed.get("belief_state"), dict):
+                self._memory.update_beliefs(parsed["belief_state"])
+            if isinstance(parsed.get("speech"), str):
+                return parsed["speech"].strip()
         return ""
 
     async def vote(self, valid_targets: list[str]) -> str:

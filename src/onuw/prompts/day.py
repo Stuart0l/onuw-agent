@@ -16,6 +16,12 @@ def build_day_speech_task(
         "statement verbatim. You may lie, claim a role, share information, ask "
         "questions. Aim for 1-4 sentences "
         f"(max {max_chars} characters).\n"
+        "\n"
+        "Before crafting your speech, update belief_state with your current "
+        "judgment of every player you have an opinion on. ONE LINE per player, "
+        "brief. Use it to stop re-deriving who is who from scratch each round.\n"
+        "\n"
         "Respond with JSON ONLY:\n"
-        '{"speech": "<your public statement>"}'
+        '{"belief_state": {"<player_id>": "<one-line current belief>", ...}, '
+        '"speech": "<your public statement>"}'
     )

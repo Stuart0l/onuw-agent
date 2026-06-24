@@ -5,6 +5,9 @@ from .state import Speech
 from .types import Role
 
 
+_LOCKED_ROLES = {Role.TROUBLEMAKER, Role.INSOMNIAC}
+
+
 @dataclass
 class NightObservation:
     step: str
@@ -25,6 +28,20 @@ class PlayerMemory:
     # in full each speak() turn so the agent always re-states its
     # current view, never accumulates stale entries.
     belief_state: dict[str, str] = field(default_factory=dict)
+    # The agent's committed CURRENT role. None until the agent picks
+    # one in their first speak() turn. Once set, prompt rendering
+    # swaps "dealt role + raw night obs" for "committed role only" so
+    # the agent stops re-deriving its role each round. Important night
+    # observations are expected to be folded into belief_state at
+    # commit time (with provenance + uncertainty), so we don't carry a
+    # separate raw-fact slot — it overlapped with belief_state.
+    committed_role: Role | None = None
+
+    def __post_init__(self) -> None:
+        # TM / Insomniac roles cannot be swapped during the night, so
+        # the dealt role IS the committed role for the whole game.
+        if self.assigned_role in _LOCKED_ROLES:
+            self.committed_role = self.assigned_role
 
     def add_observation(self, step: str, text: str, structured: dict) -> None:
         self.night_observations.append(
@@ -33,6 +50,13 @@ class PlayerMemory:
 
     def add_speech(self, speech: Speech) -> None:
         self.conversation.append(speech)
+
+    def commit_role(self, role: Role) -> None:
+        """Set committed_role. Silently ignored for locked roles
+        (TM / Insomniac) since their card cannot be swapped."""
+        if self.assigned_role in _LOCKED_ROLES:
+            return
+        self.committed_role = role
 
     def update_beliefs(self, raw: object) -> None:
         """Replace belief_state with the agent's latest dict. Drops non-
@@ -51,20 +75,32 @@ class PlayerMemory:
         self.belief_state = cleaned
 
     def to_prompt_context(self, phase: Literal["night", "day", "vote"]) -> str:
-        return "\n\n".join(
-            [
-                self._identity_section(),
-                self._observations_section(),
-                self._discussion_section(),
-                self._beliefs_section(),
-            ]
-        )
+        parts = [self._identity_section()]
+        # Raw night observations are only useful before commit. After
+        # commit, the agent is expected to have folded important night
+        # info into belief_state with provenance — so we drop the
+        # observation list entirely.
+        if self.committed_role is None:
+            parts.append(self._observations_section())
+        parts.append(self._discussion_section())
+        parts.append(self._beliefs_section())
+        return "\n\n".join(parts)
 
     def _identity_section(self) -> str:
-        return (
+        header = (
             "== YOUR IDENTITY ==\n"
             f"You are {self.name} (seat {self.seat}, id {self.player_id}). "
-            f"Your dealt role at the start of the night was: {self.assigned_role.value}."
+        )
+        if self.committed_role is None:
+            return (
+                header
+                + "Your dealt role at the start of the night was: "
+                + f"{self.assigned_role.value}."
+            )
+        return (
+            header
+            + "Your CURRENT (committed) role is: "
+            + f"{self.committed_role.value}."
         )
 
     def _observations_section(self) -> str:

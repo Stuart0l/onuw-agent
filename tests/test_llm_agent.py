@@ -411,3 +411,68 @@ async def test_belief_state_renders_into_next_prompt():
     second_user_msg = client.calls[1]["messages"][1]["content"]
     assert "== YOUR PRIVATE BELIEFS" in second_user_msg
     assert "bluffing Robber" in second_user_msg
+
+
+# ----- committed role persistence -----
+
+async def test_speak_extracts_committed_role_into_memory():
+    client = FakeClient([
+        '{"committed_current_role": "robber", '
+        '"belief_state": {}, "speech": "I am the Robber."}'
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)
+    await agent.speak(0, 3, 600)
+    assert agent.memory.committed_role == Role.ROBBER
+
+
+async def test_speak_commit_role_ignored_for_troublemaker():
+    # TM is auto-locked at bind() — any attempt by the model to change
+    # the committed role is silently dropped.
+    client = FakeClient([
+        '{"committed_current_role": "werewolf", "speech": "..."}'
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.TROUBLEMAKER)
+    assert agent.memory.committed_role == Role.TROUBLEMAKER
+    await agent.speak(0, 3, 600)
+    assert agent.memory.committed_role == Role.TROUBLEMAKER
+
+
+async def test_speak_round2_prompt_uses_committed_role_view():
+    # Round 1 commits the agent to Robber; round 2's user prompt should
+    # show the committed role and drop dealt-role + raw observations.
+    client = FakeClient([
+        '{"committed_current_role": "robber", '
+        '"belief_state": {}, "speech": "round 1"}',
+        '{"speech": "round 2"}',
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)
+    await agent.speak(0, 3, 600)
+    await agent.speak(1, 3, 600)
+    second_user_msg = client.calls[1]["messages"][1]["content"]
+    assert "CURRENT (committed) role is: robber" in second_user_msg
+    assert "dealt role at the start" not in second_user_msg
+    assert "WHAT YOU LEARNED DURING THE NIGHT" not in second_user_msg
+
+
+async def test_speak_round2_uses_committed_thinking_guide():
+    # The thinking guide swaps from COMMIT to REVIEW once committed.
+    client = FakeClient([
+        '{"committed_current_role": "robber", '
+        '"belief_state": {}, "speech": "r1"}',
+        '{"speech": "r2"}',
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)
+    await agent.speak(0, 3, 600)
+    await agent.speak(1, 3, 600)
+    second_user_msg = client.calls[1]["messages"][1]["content"]
+    assert "REVIEW COMMITTED ROLE" in second_user_msg
+    assert "COMMIT CURRENT ROLE" not in second_user_msg
+
+
+async def test_speak_invalid_committed_role_value_is_ignored():
+    client = FakeClient([
+        '{"committed_current_role": "nonsense", "speech": "hi"}'
+    ])
+    agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.WEREWOLF)
+    await agent.speak(0, 3, 600)
+    assert agent.memory.committed_role is None

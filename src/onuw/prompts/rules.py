@@ -102,18 +102,56 @@ def _commit_role_rule(dealt_role: Role) -> str:
     )
 
 
-def thinking_guide_day(dealt_role: Role) -> str:
-    """Numbered text-based reasoning guide prepended to the day-speech
-    task. Channels the model's reasoning trace through a fixed sequence
-    of steps so it doesn't loop on trust assessments, role re-derivation,
-    or strategy second-guessing.
+_LOCKED_ROLES = {Role.TROUBLEMAKER, Role.INSOMNIAC}
+
+
+def thinking_guide_day(
+    dealt_role: Role, committed_role: Role | None = None
+) -> str:
+    """Dispatch one of three reasoning-guide variants based on whether
+    the agent has committed its current role yet:
+
+    - **locked** (TM / Insomniac): role is fixed at deal; skip the
+      commit/review step entirely.
+    - **uncommitted** (committed_role is None for any other role): the
+      6-step commit guide — extract key facts to carry forward.
+    - **committed** (committed_role is set): a refine guide that REVIEWS
+      the committed role only if a new claim credibly contradicts it.
     """
+    if dealt_role in _LOCKED_ROLES:
+        return _guide_locked(dealt_role)
+    if committed_role is None:
+        return _guide_uncommitted(dealt_role)
+    return _guide_committed(committed_role)
+
+
+def _guide_locked(dealt_role: Role) -> str:
+    return (
+        "== THINKING GUIDE — follow IN ORDER, then output JSON ==\n"
+        "Walk through these steps once. After STEP 4, write the JSON "
+        "and stop. Do NOT loop back.\n"
+        "\n"
+        f"  STEP 1 — RECALL: your role is {dealt_role.value} — fixed "
+        "for the whole game (your card cannot be swapped). You are on "
+        "the VILLAGE team.\n"
+        "\n"
+        "  STEP 2 — CLAIMS: for each player who has spoken so far, ONE "
+        "LINE each — trust / distrust / neutral, with the single "
+        "strongest reason.\n"
+        "\n"
+        "  STEP 3 — STRATEGY: in ONE sentence, what you push for in "
+        "this speech.\n"
+        "\n"
+        "  STEP 4 — WRITE THE JSON BELOW."
+    )
+
+
+def _guide_uncommitted(dealt_role: Role) -> str:
     return (
         "== THINKING GUIDE — follow IN ORDER, then output JSON ==\n"
         "Walk through these steps once. Each builds on the previous. "
         "After STEP 6, write the JSON and stop. Do NOT loop back to "
-        "earlier steps; if you find yourself reconsidering, you have "
-        "already made your decision — proceed.\n"
+        "earlier steps.\n"
         "\n"
         "  STEP 1 — RECALL: state your dealt role and your literal "
         "night observations (facts only, no interpretation).\n"
@@ -133,6 +171,31 @@ def thinking_guide_day(dealt_role: Role) -> str:
         "this speech.\n"
         "\n"
         "  STEP 6 — WRITE THE JSON BELOW. Do not reconsider steps 1-5."
+    )
+
+
+def _guide_committed(committed_role: Role) -> str:
+    return (
+        "== THINKING GUIDE — follow IN ORDER, then output JSON ==\n"
+        "Walk through these steps once. After STEP 5, write the JSON "
+        "and stop. Do NOT loop back.\n"
+        "\n"
+        f"  STEP 1 — RECALL: your committed role is {committed_role.value} "
+        "and your PRIVATE BELIEFS are shown above. Treat both as settled "
+        "— do NOT re-derive game state from the discussion log.\n"
+        "\n"
+        "  STEP 2 — NEW SPEECHES: for each NEW speech since your last "
+        "turn, ONE LINE — does it change your view?\n"
+        "\n"
+        "  STEP 3 — REVIEW COMMITTED ROLE: does any new claim credibly "
+        "imply your committed role changed (e.g. a Troublemaker claims "
+        "they swapped your card)? If no, KEEP. If yes, name the change "
+        "in ONE LINE and update.\n"
+        "\n"
+        "  STEP 4 — STRATEGY: in ONE sentence, what you push for in "
+        "this speech.\n"
+        "\n"
+        "  STEP 5 — WRITE THE JSON BELOW. Do not reconsider steps 1-4."
     )
 
 

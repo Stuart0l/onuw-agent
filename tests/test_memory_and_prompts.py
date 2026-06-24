@@ -119,27 +119,51 @@ def test_night_system_prompt_is_minimal():
 
 # ----- thinking guide -----
 
-def test_day_task_has_thinking_guide_when_dealt_role_given():
+def test_day_task_uncommitted_guide_for_unlocked_role():
     # Without dealt_role the guide is omitted (older callsites).
     assert "THINKING GUIDE" not in build_day_speech_task(0, 3, max_chars=600)
-    # With dealt_role the numbered guide is prepended.
+    # Unlocked role with no committed role → 6-step uncommitted guide.
     out = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.WEREWOLF)
     assert "THINKING GUIDE" in out
     assert "STEP 1 — RECALL" in out
     assert "STEP 3 — COMMIT CURRENT ROLE" in out
+    assert "STEP 5 — STRATEGY" in out
     assert "STEP 6 — WRITE THE JSON" in out
     assert "Do NOT loop back" in out
 
 
-def test_day_guide_injects_role_specific_commit_rule():
+def test_day_task_locked_guide_for_troublemaker_or_insomniac():
+    # TM / Insomniac roles cannot be swapped — they get the locked
+    # 4-step guide with no commit / no review step.
     out_tm = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.TROUBLEMAKER)
-    assert "still the Troublemaker" in out_tm
+    assert "your role is troublemaker" in out_tm.lower()
+    assert "fixed for the whole game" in out_tm
+    assert "COMMIT CURRENT ROLE" not in out_tm
+    assert "STEP 4 — WRITE THE JSON" in out_tm
+
     out_ins = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.INSOMNIAC)
-    assert "Insomniac wake observation" in out_ins
+    assert "your role is insomniac" in out_ins.lower()
+    assert "COMMIT CURRENT ROLE" not in out_ins
+
+
+def test_day_guide_uncommitted_injects_role_specific_commit_rule():
+    # Robber + generic-other path through _commit_role_rule.
     out_rob = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.ROBBER)
     assert "the card you stole" in out_rob
     out_other = build_day_speech_task(0, 3, max_chars=600, dealt_role=Role.SEER)
     assert "may have been swapped" in out_other
+
+
+def test_day_task_committed_guide_uses_committed_role():
+    # Non-locked role + committed_role set → 5-step refine guide.
+    out = build_day_speech_task(
+        0, 3, max_chars=600,
+        dealt_role=Role.ROBBER, committed_role=Role.WEREWOLF,
+    )
+    assert "your committed role is werewolf" in out.lower()
+    assert "STEP 3 — REVIEW COMMITTED ROLE" in out
+    assert "STEP 5 — WRITE THE JSON" in out
+    assert "COMMIT CURRENT ROLE" not in out
 
 
 def test_vote_task_includes_thinking_guide():
@@ -208,3 +232,73 @@ def test_beliefs_section_renders_entries():
 def test_day_task_schema_mentions_belief_state():
     out = build_day_speech_task(0, 3, max_chars=600)
     assert "belief_state" in out
+
+
+def test_day_task_schema_mentions_committed_role():
+    out = build_day_speech_task(0, 3, max_chars=600)
+    assert "committed_current_role" in out
+
+
+def test_belief_state_instruction_mentions_reliability():
+    # Per-entry provenance/uncertainty is what replaces the separate
+    # key_facts slot — make sure the instruction text steers there.
+    out = build_day_speech_task(0, 3, max_chars=600)
+    assert "swapped" in out and "bluffs" in out
+
+
+# ----- committed role -----
+
+def test_locked_roles_auto_commit_at_construction():
+    tm = _memory(role=Role.TROUBLEMAKER)
+    assert tm.committed_role == Role.TROUBLEMAKER
+    ins = _memory(role=Role.INSOMNIAC)
+    assert ins.committed_role == Role.INSOMNIAC
+
+
+def test_unlocked_roles_start_uncommitted():
+    m = _memory(role=Role.WEREWOLF)
+    assert m.committed_role is None
+
+
+def test_commit_role_sets_for_unlocked_role():
+    m = _memory(role=Role.WEREWOLF)
+    m.commit_role(Role.ROBBER)
+    assert m.committed_role == Role.ROBBER
+
+
+def test_commit_role_ignored_for_locked_roles():
+    tm = _memory(role=Role.TROUBLEMAKER)
+    tm.commit_role(Role.WEREWOLF)  # attempt to overwrite
+    assert tm.committed_role == Role.TROUBLEMAKER
+
+
+def test_uncommitted_memory_renders_dealt_role_and_observations():
+    m = _memory(role=Role.WEREWOLF)
+    m.add_observation("ww_pair", "You see your partner: p3.", {})
+    out = m.to_prompt_context("day")
+    assert "dealt role at the start of the night was: werewolf" in out
+    assert "== WHAT YOU LEARNED DURING THE NIGHT ==" in out
+    assert "You see your partner: p3." in out
+
+
+def test_committed_memory_drops_raw_observations():
+    # Once the agent commits, raw night obs are gone from the prompt —
+    # the agent is expected to have folded important info into
+    # belief_state with provenance.
+    m = _memory(role=Role.WEREWOLF)
+    m.add_observation("ww_pair", "You see your partner: p3.", {})
+    m.commit_role(Role.WEREWOLF)
+    out = m.to_prompt_context("day")
+    assert "CURRENT (committed) role is: werewolf" in out
+    assert "== WHAT YOU LEARNED DURING THE NIGHT ==" not in out
+    assert "You see your partner: p3." not in out
+    assert "dealt role at the start" not in out
+
+
+def test_locked_role_memory_renders_committed_view_from_start():
+    # TM auto-locks at construction → IDENTITY shows committed role
+    # even before any speak() turn, and raw obs aren't shown.
+    tm = _memory(role=Role.TROUBLEMAKER)
+    out = tm.to_prompt_context("day")
+    assert "CURRENT (committed) role is: troublemaker" in out
+    assert "== WHAT YOU LEARNED DURING THE NIGHT ==" not in out

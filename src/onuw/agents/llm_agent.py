@@ -136,13 +136,21 @@ class LLMAgent(Agent):
         if self._memory is None:
             return ""
         task = build_day_speech_task(
-            round_idx, total_rounds, max_chars, dealt_role=self.dealt_role
+            round_idx, total_rounds, max_chars,
+            dealt_role=self.dealt_role,
+            committed_role=self._memory.committed_role,
         )
         user_prompt = self._memory.to_prompt_context("day") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict):
-            # Update beliefs BEFORE returning the speech, so any later
-            # prompt rendering sees the freshest state.
+            # Persist commitments BEFORE returning the speech so any
+            # later prompt rendering sees the freshest state.
+            cc = parsed.get("committed_current_role")
+            if isinstance(cc, str):
+                try:
+                    self._memory.commit_role(Role(cc.strip().lower()))
+                except ValueError:
+                    pass
             if isinstance(parsed.get("belief_state"), dict):
                 self._memory.update_beliefs(parsed["belief_state"])
             if isinstance(parsed.get("speech"), str):

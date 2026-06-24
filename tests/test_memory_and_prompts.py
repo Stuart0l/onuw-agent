@@ -148,6 +148,10 @@ def test_vote_task_includes_thinking_guide():
     assert "STEP 1 — RECALL" in out
     assert "STEP 3 — PICK" in out
     assert "STEP 4 — WRITE" in out
+    # The whole point of the rewrite: pull from prior beliefs, don't
+    # re-derive the game state at vote time.
+    assert "PRIVATE BELIEFS" in out
+    assert "do NOT re-derive" in out
 
 
 # ----- belief state -----

@@ -172,66 +172,88 @@ def test_vote_task_includes_thinking_guide():
     assert "STEP 1 — RECALL" in out
     assert "STEP 3 — PICK" in out
     assert "STEP 4 — WRITE" in out
-    # The whole point of the rewrite: pull from prior beliefs, don't
+    # The whole point of the rewrite: pull from prior hypothesis, don't
     # re-derive the game state at vote time.
-    assert "PRIVATE BELIEFS" in out
+    assert "PER-PLAYER HYPOTHESIS" in out
     assert "do NOT re-derive" in out
 
 
-# ----- belief state -----
+# ----- per-player hypothesis -----
 
-def test_update_beliefs_accepts_clean_dict():
+def _hyp(role: str, conf: str = "high", evidence: str = "ok") -> dict[str, str]:
+    return {"role": role, "confidence": conf, "evidence": evidence}
+
+
+def test_update_per_player_hypothesis_accepts_clean_dict():
     m = _memory()
-    m.update_beliefs({"p2": "likely Werewolf", "p3": "Mason, trusted"})
-    assert m.belief_state == {"p2": "likely Werewolf", "p3": "Mason, trusted"}
+    m.update_per_player_hypothesis({
+        "p2": _hyp("werewolf", "high", "saw at Minion wake"),
+        "p3": _hyp("seer", "medium", "claim consistent with deck"),
+    })
+    assert m.per_player_hypothesis == {
+        "p2": {"role": "werewolf", "confidence": "high",
+               "evidence": "saw at Minion wake"},
+        "p3": {"role": "seer", "confidence": "medium",
+               "evidence": "claim consistent with deck"},
+    }
 
 
-def test_update_beliefs_rejects_non_dict():
+def test_update_per_player_hypothesis_rejects_non_dict():
     m = _memory()
-    m.update_beliefs("not a dict")  # type: ignore[arg-type]
-    assert m.belief_state == {}
-    m.update_beliefs(["nope"])  # type: ignore[arg-type]
-    assert m.belief_state == {}
+    m.update_per_player_hypothesis("not a dict")  # type: ignore[arg-type]
+    assert m.per_player_hypothesis == {}
+    m.update_per_player_hypothesis(["nope"])  # type: ignore[arg-type]
+    assert m.per_player_hypothesis == {}
 
 
-def test_update_beliefs_skips_non_string_values_and_empty_strings():
+def test_update_per_player_hypothesis_drops_invalid_entries():
     m = _memory()
-    m.update_beliefs({"p1": "ok", "p2": 5, "p3": "  ", "p4": "fine"})
-    assert m.belief_state == {"p1": "ok", "p4": "fine"}
+    m.update_per_player_hypothesis({
+        "p1": _hyp("seer"),                       # valid
+        "p2": _hyp("nonsense"),                   # invalid role
+        "p3": _hyp("seer", "very high"),          # invalid confidence
+        "p4": _hyp("seer", "low", "  "),          # empty evidence
+        "p5": {"role": "seer"},                   # missing keys
+        "p6": "not a dict",                       # not a dict
+    })
+    assert set(m.per_player_hypothesis.keys()) == {"p1"}
 
 
-def test_update_beliefs_caps_long_entries_at_200_chars():
+def test_update_per_player_hypothesis_caps_evidence_at_150_chars():
     m = _memory()
     long = "x" * 500
-    m.update_beliefs({"p1": long})
-    assert len(m.belief_state["p1"]) == 200
+    m.update_per_player_hypothesis({"p1": _hyp("seer", "high", long)})
+    assert len(m.per_player_hypothesis["p1"]["evidence"]) == 150
 
 
-def test_update_beliefs_replaces_full_dict_not_merges():
+def test_update_per_player_hypothesis_replaces_full_dict_not_merges():
     m = _memory()
-    m.update_beliefs({"p1": "first"})
-    m.update_beliefs({"p2": "second"})
-    assert m.belief_state == {"p2": "second"}  # p1 dropped
+    m.update_per_player_hypothesis({"p1": _hyp("seer")})
+    m.update_per_player_hypothesis({"p2": _hyp("mason")})
+    assert set(m.per_player_hypothesis.keys()) == {"p2"}
 
 
-def test_beliefs_section_empty_renders_nothing_yet():
+def test_hypothesis_section_empty_renders_nothing_yet():
     out = _memory().to_prompt_context("day")
-    assert "== YOUR PRIVATE BELIEFS" in out
+    assert "== YOUR PER-PLAYER HYPOTHESIS" in out
     assert "Nothing yet." in out
 
 
-def test_beliefs_section_renders_entries():
+def test_hypothesis_section_renders_entries():
     m = _memory()
-    m.update_beliefs({"p2": "likely Werewolf", "p3": "Mason"})
+    m.update_per_player_hypothesis({
+        "p2": _hyp("werewolf", "high", "saw at Minion wake"),
+        "p3": _hyp("seer", "medium", "claim consistent"),
+    })
     out = m.to_prompt_context("day")
-    assert "== YOUR PRIVATE BELIEFS" in out
-    assert "- p2: likely Werewolf" in out
-    assert "- p3: Mason" in out
+    assert "== YOUR PER-PLAYER HYPOTHESIS" in out
+    assert "- p2: werewolf (high) — saw at Minion wake" in out
+    assert "- p3: seer (medium) — claim consistent" in out
 
 
-def test_day_task_schema_mentions_belief_state():
+def test_day_task_schema_mentions_per_player_hypothesis():
     out = build_day_speech_task(0, 3, max_chars=600)
-    assert "belief_state" in out
+    assert "per_player_hypothesis" in out
 
 
 def test_day_task_schema_mentions_committed_role():
@@ -239,9 +261,9 @@ def test_day_task_schema_mentions_committed_role():
     assert "committed_current_role" in out
 
 
-def test_belief_state_instruction_mentions_reliability():
-    # Per-entry provenance/uncertainty is what replaces the separate
-    # key_facts slot — make sure the instruction text steers there.
+def test_day_task_instruction_mentions_reliability():
+    # Per-entry provenance/uncertainty guidance lives in the
+    # per_player_hypothesis instruction text.
     out = build_day_speech_task(0, 3, max_chars=600)
     assert "swapped" in out and "bluffs" in out
 
@@ -284,7 +306,7 @@ def test_uncommitted_memory_renders_dealt_role_and_observations():
 def test_committed_memory_drops_raw_observations():
     # Once the agent commits, raw night obs are gone from the prompt —
     # the agent is expected to have folded important info into
-    # belief_state with provenance.
+    # per_player_hypothesis with provenance.
     m = _memory(role=Role.WEREWOLF)
     m.add_observation("ww_pair", "You see your partner: p3.", {})
     m.commit_role(Role.WEREWOLF)

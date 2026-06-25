@@ -151,8 +151,10 @@ class LLMAgent(Agent):
                     self._memory.commit_role(Role(cc.strip().lower()))
                 except ValueError:
                     pass
-            if isinstance(parsed.get("belief_state"), dict):
-                self._memory.update_beliefs(parsed["belief_state"])
+            if isinstance(parsed.get("per_player_hypothesis"), dict):
+                self._memory.update_per_player_hypothesis(
+                    parsed["per_player_hypothesis"]
+                )
             if isinstance(parsed.get("speech"), str):
                 return parsed["speech"].strip()
         return ""

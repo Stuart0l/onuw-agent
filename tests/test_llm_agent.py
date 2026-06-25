@@ -369,48 +369,59 @@ async def test_non_streaming_path_when_no_bus_is_bound():
     assert target == "p2"
 
 
-# ----- belief state extraction -----
+# ----- per-player hypothesis extraction -----
 
-async def test_speak_extracts_belief_state_into_memory():
+async def test_speak_extracts_per_player_hypothesis_into_memory():
     client = FakeClient([
-        '{"belief_state": {"p2": "likely Werewolf", "p3": "Mason"}, '
-        '"speech": "I think p2 is the wolf."}'
+        '{"per_player_hypothesis": {'
+        '"p2": {"role": "werewolf", "confidence": "high", "evidence": "saw at Minion wake"},'
+        '"p3": {"role": "mason", "confidence": "medium", "evidence": "claim consistent"}'
+        '}, "speech": "I think p2 is the wolf."}'
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client))
     text = await agent.speak(round_idx=0, total_rounds=3, max_chars=600)
     assert text == "I think p2 is the wolf."
     assert agent.memory is not None
-    assert agent.memory.belief_state == {
-        "p2": "likely Werewolf",
-        "p3": "Mason",
+    assert agent.memory.per_player_hypothesis == {
+        "p2": {"role": "werewolf", "confidence": "high",
+               "evidence": "saw at Minion wake"},
+        "p3": {"role": "mason", "confidence": "medium",
+               "evidence": "claim consistent"},
     }
 
 
-async def test_speak_without_belief_state_in_response_preserves_prior_state():
-    # First call sets beliefs; second call's response has no belief_state.
+async def test_speak_without_hypothesis_in_response_preserves_prior_state():
+    # First call sets a hypothesis; second call's response omits it.
     client = FakeClient([
-        '{"belief_state": {"p2": "wolf"}, "speech": "round 1 speech"}',
+        '{"per_player_hypothesis": {'
+        '"p2": {"role": "werewolf", "confidence": "high", "evidence": "ok"}'
+        '}, "speech": "round 1 speech"}',
         '{"speech": "round 2 speech"}',
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client))
     await agent.speak(0, 3, 600)
     await agent.speak(1, 3, 600)
-    assert agent.memory.belief_state == {"p2": "wolf"}
+    assert agent.memory.per_player_hypothesis == {
+        "p2": {"role": "werewolf", "confidence": "high", "evidence": "ok"},
+    }
 
 
-async def test_belief_state_renders_into_next_prompt():
-    # First speak() seeds beliefs. The user prompt sent on the SECOND
-    # speak() should include the previously-stored belief.
+async def test_hypothesis_renders_into_next_prompt():
+    # First speak() seeds the hypothesis. The user prompt sent on the
+    # SECOND speak() should include the previously-stored entries.
     client = FakeClient([
-        '{"belief_state": {"p2": "bluffing Robber"}, "speech": "hi"}',
+        '{"per_player_hypothesis": {'
+        '"p2": {"role": "robber", "confidence": "medium", "evidence": "bluffing"}'
+        '}, "speech": "hi"}',
         '{"speech": "round 2 reply"}',
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client))
     await agent.speak(0, 3, 600)
     await agent.speak(1, 3, 600)
     second_user_msg = client.calls[1]["messages"][1]["content"]
-    assert "== YOUR PRIVATE BELIEFS" in second_user_msg
-    assert "bluffing Robber" in second_user_msg
+    assert "== YOUR PER-PLAYER HYPOTHESIS" in second_user_msg
+    assert "robber" in second_user_msg
+    assert "bluffing" in second_user_msg
 
 
 # ----- committed role persistence -----
@@ -418,7 +429,7 @@ async def test_belief_state_renders_into_next_prompt():
 async def test_speak_extracts_committed_role_into_memory():
     client = FakeClient([
         '{"committed_current_role": "robber", '
-        '"belief_state": {}, "speech": "I am the Robber."}'
+        '"speech": "I am the Robber."}'
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)
     await agent.speak(0, 3, 600)
@@ -442,7 +453,7 @@ async def test_speak_round2_prompt_uses_committed_role_view():
     # show the committed role and drop dealt-role + raw observations.
     client = FakeClient([
         '{"committed_current_role": "robber", '
-        '"belief_state": {}, "speech": "round 1"}',
+        '"speech": "round 1"}',
         '{"speech": "round 2"}',
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)
@@ -458,7 +469,7 @@ async def test_speak_round2_uses_committed_thinking_guide():
     # The thinking guide swaps from COMMIT to REVIEW once committed.
     client = FakeClient([
         '{"committed_current_role": "robber", '
-        '"belief_state": {}, "speech": "r1"}',
+        '"speech": "r1"}',
         '{"speech": "r2"}',
     ])
     agent = _bind(LLMAgent("p1", model="x", client=client), role=Role.ROBBER)

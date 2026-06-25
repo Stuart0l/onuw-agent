@@ -24,17 +24,17 @@ class PlayerMemory:
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
     own_speeches_drafts: list[str] = field(default_factory=list)
-    # Private self-memory: player_id → one-line current belief. Replaced
-    # in full each speak() turn so the agent always re-states its
-    # current view, never accumulates stale entries.
-    belief_state: dict[str, str] = field(default_factory=dict)
+    # Private self-memory: player_id → {role, confidence, evidence}.
+    # The agent's structured hypothesis about each speaking player.
+    # Replaced in full each speak() turn so the agent always re-states
+    # its current view, never accumulates stale entries.
+    per_player_hypothesis: dict[str, dict[str, str]] = field(default_factory=dict)
     # The agent's committed CURRENT role. None until the agent picks
     # one in their first speak() turn. Once set, prompt rendering
     # swaps "dealt role + raw night obs" for "committed role only" so
     # the agent stops re-deriving its role each round. Important night
-    # observations are expected to be folded into belief_state at
-    # commit time (with provenance + uncertainty), so we don't carry a
-    # separate raw-fact slot — it overlapped with belief_state.
+    # observations are expected to be folded into per_player_hypothesis
+    # at commit time, so we don't carry a separate raw-fact slot.
     committed_role: Role | None = None
 
     def __post_init__(self) -> None:
@@ -58,32 +58,56 @@ class PlayerMemory:
             return
         self.committed_role = role
 
-    def update_beliefs(self, raw: object) -> None:
-        """Replace belief_state with the agent's latest dict. Drops non-
-        dict input, non-string values, empty strings; caps each entry at
-        200 chars to bound prompt growth."""
+    _CONFIDENCE_VALUES = frozenset({"high", "medium", "low"})
+
+    def update_per_player_hypothesis(self, raw: object) -> None:
+        """Replace per_player_hypothesis with the agent's latest dict.
+        Each entry must carry a valid role enum value, a confidence in
+        {high|medium|low}, and a non-empty evidence string (capped at
+        150 chars). Invalid entries are dropped silently."""
         if not isinstance(raw, dict):
             return
-        cleaned: dict[str, str] = {}
-        for pid, val in raw.items():
-            if not isinstance(pid, str) or not isinstance(val, str):
+        cleaned: dict[str, dict[str, str]] = {}
+        for pid, entry in raw.items():
+            if not isinstance(pid, str) or not isinstance(entry, dict):
                 continue
-            s = val.strip()
-            if not s:
+            role = entry.get("role")
+            confidence = entry.get("confidence")
+            evidence = entry.get("evidence")
+            if not (
+                isinstance(role, str)
+                and isinstance(confidence, str)
+                and isinstance(evidence, str)
+            ):
                 continue
-            cleaned[pid] = s[:200]
-        self.belief_state = cleaned
+            role_clean = role.strip().lower()
+            try:
+                Role(role_clean)
+            except ValueError:
+                continue
+            conf_clean = confidence.strip().lower()
+            if conf_clean not in self._CONFIDENCE_VALUES:
+                continue
+            ev_clean = evidence.strip()[:150]
+            if not ev_clean:
+                continue
+            cleaned[pid] = {
+                "role": role_clean,
+                "confidence": conf_clean,
+                "evidence": ev_clean,
+            }
+        self.per_player_hypothesis = cleaned
 
     def to_prompt_context(self, phase: Literal["night", "day", "vote"]) -> str:
         parts = [self._identity_section()]
         # Raw night observations are only useful before commit. After
         # commit, the agent is expected to have folded important night
-        # info into belief_state with provenance — so we drop the
-        # observation list entirely.
+        # info into per_player_hypothesis — so we drop the observation
+        # list entirely.
         if self.committed_role is None:
             parts.append(self._observations_section())
         parts.append(self._discussion_section())
-        parts.append(self._beliefs_section())
+        parts.append(self._hypothesis_section())
         return "\n\n".join(parts)
 
     def _identity_section(self) -> str:
@@ -126,11 +150,12 @@ class PlayerMemory:
                 parts.append(f'  - {sp.speaker_id}: "{sp.text}"')
         return "\n".join(parts)
 
-    def _beliefs_section(self) -> str:
-        header = "== YOUR PRIVATE BELIEFS (from your last turn; only you see this) =="
-        if not self.belief_state:
+    def _hypothesis_section(self) -> str:
+        header = "== YOUR PER-PLAYER HYPOTHESIS (from your last turn; only you see this) =="
+        if not self.per_player_hypothesis:
             return f"{header}\nNothing yet."
         body = "\n".join(
-            f"- {pid}: {belief}" for pid, belief in self.belief_state.items()
+            f"- {pid}: {h['role']} ({h['confidence']}) — {h['evidence']}"
+            for pid, h in self.per_player_hypothesis.items()
         )
         return f"{header}\n{body}"

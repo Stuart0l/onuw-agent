@@ -22,14 +22,19 @@ def build_day_speech_task(
         "questions. Aim for 1-4 sentences "
         f"(max {max_chars} characters).\n"
         "\n"
-        "Update belief_state — ONE LINE per player you have an opinion on. "
-        "Combine evidence with your judgment, marking source reliability "
-        "(night observations can be swapped, speeches can be bluffs).\n"
+        "Update per_player_hypothesis — for each player you have an "
+        "opinion on, pick the SINGLE most likely current role with a "
+        "confidence (high/medium/low) and one line of evidence. Mark "
+        "source reliability (night observations can be swapped, "
+        "speeches can be bluffs).\n"
         "\n"
         "Respond with JSON ONLY:\n"
         "{\n"
         '  "committed_current_role": "<role name>",  // omit if no change\n'
-        '  "belief_state": {"<player_id>": "<one-line current belief>", ...},\n'
+        '  "per_player_hypothesis": {\n'
+        '    "<player_id>": {"role": "<role>", "confidence": "high|medium|low", "evidence": "<one line>"},\n'
+        "    ...\n"
+        "  },\n"
         '  "speech": "<your public statement>"\n'
         "}"
     )

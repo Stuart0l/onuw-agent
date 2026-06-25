@@ -1,0 +1,83 @@
+# DeepSeek-V4-Pro config: all 5 players run on DeepSeek's hosted
+# deepseek-v4-pro model via the OpenAI-compatible endpoint.
+#
+# Before running:
+#   export OPENAI_API_KEY=<your-deepseek-bearer-token>
+#   export OPENAI_API_BASE=https://api.deepseek.com/v1
+#
+# Then:
+#   uv run python -m onuw run --config configs/sample_deepseek.yaml --god
+#
+# Notes:
+# - DeepSeek-V4-Pro is a REASONING model: its chain-of-thought is
+#   returned via the `reasoning_content` field, which our LLMClient
+#   already extracts and routes to ReasoningChunkEvent. With a small
+#   max_tokens budget the model spends everything on thinking and
+#   `content` comes back empty (just trailing newlines). max_tokens
+#   is bumped to 8192 here to leave room for both reasoning and the
+#   final JSON answer.
+# - json_mode is left at the default (false). If your endpoint
+#   accepts response_format={"type":"json_object"} you can flip it
+#   per player for stronger output enforcement.
+# - `extra_body` is the escape hatch for provider-specific request
+#   fields (e.g. enabling/disabling thinking modes); none are set by
+#   default since DeepSeek's OpenAI-compatible endpoint accepts the
+#   standard fields.
+
+discussion_rounds: 3
+max_speech_chars: 1200
+seed: 37
+log_dir: logs
+console: true
+
+role_pool:
+  - werewolf
+  - werewolf
+  - seer
+  - robber
+  - troublemaker
+  - mason
+  - mason
+  - minion
+
+players:
+  - id: p1
+    name: Alice
+    model: openai/deepseek-v4-pro
+    temperature: 0.7
+    max_tokens: 8192
+    extra_body:
+      thinking:
+        type: disabled
+  - id: p2
+    name: Bob
+    model: openai/deepseek-v4-pro
+    temperature: 0.2
+    max_tokens: 16384
+    extra_body:
+      thinking:
+        type: enabled
+  - id: p3
+    name: Cara
+    model: openai/deepseek-v4-pro
+    temperature: 0.7
+    max_tokens: 8192
+    extra_body:
+      thinking:
+        type: disabled
+  - id: p4
+    name: Dan
+    model: openai/deepseek-v4-pro
+    temperature: 0.7
+    max_tokens: 8192
+    extra_body:
+      thinking:
+        type: disabled
+  - id: p5
+    name: Eve
+    model: openai/deepseek-v4-pro
+    temperature: 0.7
+    max_tokens: 8192
+    extra_body:
+      thinking:
+        type: disabled

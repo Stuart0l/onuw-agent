@@ -1,4 +1,3 @@
-import uuid
 from dataclasses import asdict, dataclass
 
 from ..agents import AgentFactory
@@ -8,6 +7,7 @@ from ..events.bus import EventBus, GameEndEvent
 from ..llm import TokenUsage
 from ..state import GameState
 from ..types import Team
+from ..utils.ids import default_game_id
 from .day import run_day
 from .night import run_night
 from .resolve import resolve_winners
@@ -33,7 +33,7 @@ class GameEngine:
         self.cfg = cfg
         self.bus = bus
         self.agent_factory = agent_factory
-        self.game_id = game_id or uuid.uuid4().hex[:8]
+        self.game_id = game_id or default_game_id()
         self.state: GameState | None = None
         self.agents: dict[str, Agent] | None = None
 

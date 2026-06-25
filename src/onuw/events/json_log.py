@@ -1,11 +1,11 @@
 import json
-import uuid
 from dataclasses import fields
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from ..utils.ids import default_game_id
 from .bus import ContentChunkEvent, Event, GameEndEvent, ReasoningChunkEvent
 from .observer import Observer
 
@@ -39,7 +39,7 @@ class JsonObserver(Observer):
 
     def on_event(self, event: Event) -> None:
         if self.game_id is None:
-            self.game_id = getattr(event, "game_id", None) or uuid.uuid4().hex[:8]
+            self.game_id = getattr(event, "game_id", None) or default_game_id()
         # Skip streaming chunks — the per-call aggregate arrives as a
         # single LLMCallEvent from LLMAgent and that's what we log.
         if isinstance(event, (ReasoningChunkEvent, ContentChunkEvent)):

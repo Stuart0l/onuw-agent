@@ -1,5 +1,4 @@
 import random
-import uuid
 
 from ..agents import AgentFactory
 from ..agents.base import Agent
@@ -11,6 +10,7 @@ from ..events.bus import (
     RoleAssignedEvent,
 )
 from ..state import CenterCard, GameState, PlayerState
+from ..utils.ids import default_game_id
 
 
 def deal(
@@ -19,14 +19,11 @@ def deal(
     agent_factory: AgentFactory,
     game_id: str | None = None,
 ) -> tuple[GameState, dict[str, Agent]]:
-    """Set up the game: shuffle the role pool, deal cards to players and
-    center, instantiate one Agent per seat via the factory, bind each
-    with its seat facts, and emit the start-of-game event stream.
-
-    Agents own their private memory and prompt rendering.
-    """
+    """Shuffle the role pool, deal cards to players + center, build
+    one Agent per seat via the factory, bind each with seat facts,
+    and emit the start-of-game event stream."""
     if game_id is None:
-        game_id = uuid.uuid4().hex[:8]
+        game_id = default_game_id()
 
     rng = random.Random(cfg.seed) if cfg.seed is not None else random.Random()
     pool = list(cfg.role_pool)

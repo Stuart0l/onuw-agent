@@ -9,11 +9,9 @@ AgentFactory = Callable[[PlayerConfig], Agent]
 
 
 def default_factory(client: LLMClient | None = None) -> AgentFactory:
-    """Return an AgentFactory that builds LiteLLM-backed LLMAgents.
-
-    The same ``LLMClient`` instance is shared across all seats so that
-    per-provider rate limits and backoff state are coordinated.
-    """
+    """AgentFactory that builds LiteLLM-backed LLMAgents. One
+    ``LLMClient`` is shared across all seats so per-provider rate
+    limits and backoff state stay coordinated."""
     shared = client or LLMClient()
 
     def factory(pcfg: PlayerConfig) -> Agent:

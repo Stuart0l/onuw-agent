@@ -46,10 +46,8 @@ def _roles_in_game_block(role_pool: list[Role] | None) -> str:
 
 
 def build_night_system_prompt(role: Role) -> str:
-    """Minimal system prompt for night-action calls. Drops game rules,
-    win conditions, deck composition, and other roles' abilities — the
-    agent is just picking a target/index for its OWN role, none of that
-    context informs the decision."""
+    """Minimal system prompt for night-action calls — preamble + own
+    role + JSON directive only."""
     return "\n\n".join(
         [SYSTEM_PREAMBLE, ROLE_ABILITY_BLOCKS[role], OUTPUT_FORMAT_PREAMBLE]
     )
@@ -59,10 +57,8 @@ def build_system_prompt(
     player: PlayerState,
     role_pool: list[Role] | None = None,
 ) -> str:
-    # When role_pool is given, the ROLES IN THIS GAME block already
-    # covers every role at the table (including the player's own), so
-    # the separate "YOUR ROLE" block is omitted. Fall back to the
-    # per-player block when no pool was supplied (older test callsites).
+    # With role_pool, ROLES IN THIS GAME already covers the player's
+    # own role; fall back to the per-player block otherwise.
     own_role_block = (
         "" if role_pool else ROLE_ABILITY_BLOCKS[player.original_role]
     )

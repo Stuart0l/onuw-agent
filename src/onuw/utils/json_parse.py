@@ -6,16 +6,10 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
 
 def extract_json(text: str) -> Any:
-    """Tolerant JSON extraction from an LLM response.
-
-    Order of attempts:
-      1. Raw json.loads on the trimmed text.
-      2. Strip a surrounding markdown ``` or ```json fence and try again.
-      3. Find the first balanced {...} or [...] block (skipping content
-         inside JSON strings) and parse that.
-
-    Raises json.JSONDecodeError if none of the above succeed.
-    """
+    """Tolerant JSON extraction. Tries: (1) raw json.loads, (2) strip
+    a surrounding ```/```json fence, (3) first balanced {...}/[...]
+    block (ignoring string-literal contents). Raises
+    json.JSONDecodeError on total failure."""
     text = (text or "").strip()
     try:
         return json.loads(text)

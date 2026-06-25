@@ -4,12 +4,8 @@ from typing import Any
 
 @dataclass
 class LLMResult:
-    """One complete call's worth of usable signal from the LLM.
-
-    ``reasoning`` carries the chain-of-thought from reasoning models
-    (e.g. MiniMax-M3's ``reasoning_content`` field) — empty string for
-    non-reasoning models.
-    """
+    """One complete LLM call. ``reasoning`` carries the chain-of-thought
+    from reasoning models (empty string otherwise)."""
 
     content: str
     usage: "TokenUsage"
@@ -18,10 +14,8 @@ class LLMResult:
 
 @dataclass
 class TokenUsage:
-    """Per-call token accounting. Lives on every Agent so the engine can
-    sum across players regardless of which LLM backend (LiteLLM,
-    LangChain, etc.) is in use. Non-LLM agents leave it at zero.
-    """
+    """Per-call token accounting. Lives on every Agent so the engine
+    can sum across players regardless of LLM backend."""
 
     prompt_tokens: int = 0
     completion_tokens: int = 0

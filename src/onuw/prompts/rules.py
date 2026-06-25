@@ -108,16 +108,10 @@ _LOCKED_ROLES = {Role.TROUBLEMAKER, Role.INSOMNIAC}
 def thinking_guide_day(
     dealt_role: Role, committed_role: Role | None = None
 ) -> str:
-    """Dispatch one of three reasoning-guide variants based on whether
-    the agent has committed its current role yet:
-
-    - **locked** (TM / Insomniac): role is fixed at deal; skip the
-      commit/review step entirely.
-    - **uncommitted** (committed_role is None for any other role): the
-      6-step commit guide — extract key facts to carry forward.
-    - **committed** (committed_role is set): a refine guide that REVIEWS
-      the committed role only if a new claim credibly contradicts it.
-    """
+    """Dispatch one of three reasoning-guide variants:
+    - locked (TM / Insomniac): role fixed at deal, no commit step.
+    - uncommitted (other roles, committed_role None): 6-step commit guide.
+    - committed (committed_role set): 5-step review-and-refine guide."""
     if dealt_role in _LOCKED_ROLES:
         return _guide_locked(dealt_role)
     if committed_role is None:

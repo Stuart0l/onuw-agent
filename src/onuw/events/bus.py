@@ -86,9 +86,7 @@ class DeathsEvent(Event):
 
 @dataclass(frozen=True)
 class ReasoningChunkEvent(Event):
-    """One streamed token (or chunk) of a reasoning-model's chain of
-    thought. Concatenating all chunks for a given player reconstructs
-    the full reasoning text."""
+    """One streamed chunk of a reasoning-model's chain of thought."""
 
     player_id: str
     delta: str
@@ -97,10 +95,9 @@ class ReasoningChunkEvent(Event):
 
 @dataclass(frozen=True)
 class LLMCallEvent(Event):
-    """One full LLM call's aggregated reasoning + content. Emitted by
-    ``LLMAgent`` after each call so the JSON log captures the whole
-    text in one record instead of N chunk records. ConsoleObserver
-    ignores this event — chunks already painted it live."""
+    """One full LLM call's aggregated reasoning + content. Emitted
+    after each call so the JSON log captures the whole text in one
+    record instead of N chunk records."""
 
     player_id: str
     reasoning: str
@@ -110,11 +107,7 @@ class LLMCallEvent(Event):
 
 @dataclass(frozen=True)
 class ContentChunkEvent(Event):
-    """One streamed token (or chunk) of the final answer. Inline
-    ``<think>`` tags appear in this stream raw — they're cleaned out
-    when the engine consumes the parsed result, but during live
-    streaming they act as a visible delimiter between reasoning and
-    answer for providers that emit everything via ``delta.content``."""
+    """One streamed chunk of the final answer."""
 
     player_id: str
     delta: str

@@ -23,10 +23,8 @@ class ConsoleObserver(Observer):
     def __init__(self, god: bool = False, console: Console | None = None) -> None:
         self.god = god
         self.console = console or Console()
-        # Tracks the (player_id, kind) currently streaming. "kind" is
-        # either "reasoning" or "content"; switching either dimension
-        # closes the prior block and starts a new one with a fresh
-        # header line.
+        # (player_id, kind) currently streaming; kind ∈ {"reasoning",
+        # "content"}. Switching either field starts a new block.
         self._streaming: tuple[str, str] | None = None
 
     def on_event(self, event: Event) -> None:

@@ -24,22 +24,17 @@ class PlayerMemory:
     night_observations: list[NightObservation] = field(default_factory=list)
     conversation: list[Speech] = field(default_factory=list)
     own_speeches_drafts: list[str] = field(default_factory=list)
-    # Private self-memory: player_id → {role, confidence, evidence}.
-    # The agent's structured hypothesis about each speaking player.
-    # Replaced in full each speak() turn so the agent always re-states
-    # its current view, never accumulates stale entries.
+    # player_id → {role, confidence, evidence}. Replaced in full each
+    # speak() turn so stale entries can't accumulate.
     per_player_hypothesis: dict[str, dict[str, str]] = field(default_factory=dict)
-    # The agent's committed CURRENT role. None until the agent picks
-    # one in their first speak() turn. Once set, prompt rendering
-    # swaps "dealt role + raw night obs" for "committed role only" so
-    # the agent stops re-deriving its role each round. Important night
-    # observations are expected to be folded into per_player_hypothesis
-    # at commit time, so we don't carry a separate raw-fact slot.
+    # Committed CURRENT role. None until the first speak() turn picks
+    # one; once set, prompt rendering drops dealt role + raw night obs
+    # so the agent stops re-deriving its role each round.
     committed_role: Role | None = None
 
     def __post_init__(self) -> None:
-        # TM / Insomniac roles cannot be swapped during the night, so
-        # the dealt role IS the committed role for the whole game.
+        # TM / Insomniac cards cannot be swapped — dealt role IS
+        # committed role for the whole game.
         if self.assigned_role in _LOCKED_ROLES:
             self.committed_role = self.assigned_role
 
@@ -100,10 +95,8 @@ class PlayerMemory:
 
     def to_prompt_context(self, phase: Literal["night", "day", "vote"]) -> str:
         parts = [self._identity_section()]
-        # Raw night observations are only useful before commit. After
-        # commit, the agent is expected to have folded important night
-        # info into per_player_hypothesis — so we drop the observation
-        # list entirely.
+        # Raw night obs render only before commit; once committed, the
+        # agent has folded the important bits into per_player_hypothesis.
         if self.committed_role is None:
             parts.append(self._observations_section())
         parts.append(self._discussion_section())

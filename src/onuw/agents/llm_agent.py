@@ -55,8 +55,8 @@ class LLMAgent(Agent):
 
     @property
     def memory(self) -> PlayerMemory | None:
-        """Read-only view of the agent's private memory (exposed for
-        tests / debugging; the engine does not read it)."""
+        """Read-only view of the agent's private memory (for tests /
+        debugging; the engine does not read it)."""
         return self._memory
 
     # ---- Lifecycle ----
@@ -110,17 +110,16 @@ class LLMAgent(Agent):
                 Speech(round_idx=round_idx, speaker_id=speaker_id, text=text)
             )
 
-    # observe_votes / observe_deaths use the inherited no-op defaults
-    # for now; the LLM agent can read recent history from the speech
-    # log it already accumulated.
+    # observe_votes / observe_deaths: inherited no-ops; the speech log
+    # carries the recent history.
 
     # ---- Decisions ----
 
     async def act_night(
         self, action_key: str, valid_targets: list[str]
     ) -> dict:
-        # Night decisions don't need memory context， the task block names the role
-        # and lists valid targets.
+        # Night needs no memory context — task block carries the role
+        # and valid targets.
         role = _ACTION_KEY_TO_ROLE.get(action_key)
         if role is None or self._memory is None:
             return {}
@@ -143,7 +142,7 @@ class LLMAgent(Agent):
         user_prompt = self._memory.to_prompt_context("day") + "\n\n" + task
         parsed = await self._ask_json(user_prompt)
         if isinstance(parsed, dict):
-            # Persist commitments BEFORE returning the speech so any
+            # Persist commitments before returning the speech so any
             # later prompt rendering sees the freshest state.
             cc = parsed.get("committed_current_role")
             if isinstance(cc, str):
@@ -174,15 +173,10 @@ class LLMAgent(Agent):
     async def _ask_json(
         self, user_prompt: str, *, system: str | None = None
     ) -> Any | None:
-        """Send a completion; one retry with a strict reminder if the
-        first response is unparseable. Returns the parsed value or None
-        if both attempts fail. Emits a UserWarning carrying both raw
-        responses when the fallback fires, so a misbehaving model is
-        visible without spamming the console on every successful call.
-
-        ``system`` overrides the default day/vote system prompt; used by
-        ``act_night`` to send the trimmed night-only system prompt.
-        """
+        """One retry with a strict reminder on parse failure; warns and
+        returns None if both attempts fail. ``system`` overrides the
+        default day/vote system prompt — used by ``act_night`` for the
+        trimmed night-only system prompt. Returns the parsed value."""
         raw = await self._complete(user_prompt, system=system)
         parsed = _try_parse(raw)
         if parsed is not None:
@@ -207,8 +201,7 @@ class LLMAgent(Agent):
     async def _complete(
         self, user_prompt: str, *, system: str | None = None
     ) -> str:
-        # Stream when there is a bus to publish chunks to — otherwise
-        # there is no observer that would benefit from live tokens.
+        # Stream only when a bus is wired up to consume the chunks.
         streaming = self.bus is not None
 
         def _emit_reasoning(delta: str) -> None:

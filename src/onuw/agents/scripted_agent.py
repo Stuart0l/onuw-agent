@@ -4,18 +4,11 @@ from .base import Agent
 
 
 class ScriptedAgent(Agent):
-    """Deterministic agent for testing.
-
-    Returns canned responses keyed by phase:
-      - night: dict[action_key, action_dict]
-      - day:   dict[round_idx, speech]
-      - vote:  player_id string
-    Missing keys fall back to safe defaults (empty dict / no-op string /
-    vote-for-self).
-
-    Records observed events (night, speeches, votes, deaths) on public
-    attributes so tests can verify what the engine pushed to this agent.
-    """
+    """Deterministic agent for tests. Returns canned responses per
+    phase (``night``: ``{action_key: action_dict}``; ``day``:
+    ``{round_idx: speech}``; ``vote``: player_id); missing keys fall
+    back to safe defaults. Records observed events on public
+    attributes for test assertions."""
 
     def __init__(
         self,

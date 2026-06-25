@@ -8,19 +8,12 @@ from . import LLMResult, TokenUsage
 
 
 class _ThinkSplitter:
-    """Minimal stateful splitter for inline ``<think>`` tags.
+    """Stateful splitter for inline ``<think>`` tags. ``feed(delta)``
+    returns ``(content_out, reasoning_out)`` for the delta.
 
-    One boolean of state — ``in_think`` — tells us whether the next bytes
-    belong to reasoning or content. ``feed(delta)`` returns
-    ``(content_out, reasoning_out)`` for the delta.
-
-    Documented edge case: a tag split exactly across a chunk boundary
-    (chunk N ends with ``<thi``, chunk N+1 starts with ``nk>``) gets
-    displayed as literal text — those few bytes route to whichever side
-    we were on. For typical LLM streaming (chunk sizes well above the
-    7-char tag length) this is rare; we trade off the buffering
-    complexity for a much simpler implementation.
-    """
+    Edge case: a tag split exactly across a chunk boundary routes those
+    few bytes to whichever side was current — rare for typical LLM
+    chunk sizes, traded for a simpler implementation."""
 
     OPEN = "<think>"
     CLOSE = "</think>"
@@ -55,8 +48,8 @@ class _ThinkSplitter:
 
 
 class _SyntheticDelta:
-    """Mimics a streaming ``delta`` object so a non-streaming response
-    can be processed by the same chunk loop as a real stream."""
+    """Mimics a streaming ``delta`` so non-streaming responses share
+    the chunk loop."""
 
     def __init__(self, content: str, reasoning_content: str) -> None:
         self.content = content
@@ -75,8 +68,8 @@ class _SyntheticChunk:
 
 
 async def _wrap_as_single_chunk(resp: Any):
-    """Yield exactly one synthetic chunk carrying the full non-streaming
-    response. Lets ``_process_chunks`` be the only code path."""
+    """Yield one synthetic chunk carrying the full non-streaming
+    response so ``_process_chunks`` is the only code path."""
     msg = resp.choices[0].message
     content = getattr(msg, "content", None) or ""
     reasoning = (
@@ -93,11 +86,8 @@ async def _wrap_as_single_chunk(resp: Any):
 
 class LLMClient:
     """Async wrapper around ``litellm.acompletion`` with exponential
-    backoff. Only this module imports litellm so the rest of the codebase
-    can be exercised (e.g. with ScriptedAgent) without provider deps.
-
-    Tests inject a fake by subclassing and overriding ``_acompletion``.
-    """
+    backoff. Only this module imports litellm. Tests inject a fake by
+    subclassing and overriding ``_acompletion``."""
 
     def __init__(
         self,
@@ -162,11 +152,10 @@ class LLMClient:
         on_reasoning_chunk: Callable[[str], None] | None,
         on_content_chunk: Callable[[str], None] | None,
     ) -> LLMResult:
-        """Single canonical chunk processor used by both the streaming
-        and non-streaming paths. Non-streaming responses are wrapped as
-        a one-shot iterator so the same accumulate + split logic
-        applies. The ``_ThinkSplitter`` strips inline ``<think>`` tags
-        from content deltas live so callbacks never see them."""
+        """One chunk loop for both streaming and non-streaming paths
+        (non-streaming responses arrive as a one-shot synthetic chunk).
+        ``_ThinkSplitter`` strips inline ``<think>`` tags from content
+        deltas so callbacks never see them."""
         splitter = _ThinkSplitter()
         content_parts: list[str] = []
         reasoning_parts: list[str] = []
@@ -199,14 +188,9 @@ class LLMClient:
                 if chunk_usage is not None:
                     usage = TokenUsage.from_response(chunk)
         except Exception as exc:  # noqa: BLE001
-            # MiniMax (and other providers) occasionally end a stream
-            # with finish_reason="error" mid-flight, which LiteLLM
-            # surfaces as an APIConnectionError / MidStreamFallbackError
-            # raised from inside the async iterator. The chunks we
-            # already received are valid — return them as a partial
-            # result so the agent's parse-failure retry path can decide
-            # whether to retry the call. If we have nothing useful,
-            # the agent's existing retry-then-default kicks in.
+            # Providers (notably MiniMax) sometimes finish a stream with
+            # finish_reason="error" mid-flight. Return whatever we
+            # accumulated; the agent's retry-then-default handles it.
             warnings.warn(
                 f"Stream interrupted mid-flight ({type(exc).__name__}: {exc}); "
                 f"returning partial result ({len(content_parts)} content "

@@ -36,14 +36,11 @@ async def run_vote(
 
 
 def _resolve_deaths(state: GameState) -> tuple[list[str], list[tuple[str, str]]]:
-    """ONUW vote resolution:
-      - Count votes per target.
-      - If the top count is < 2, no one dies (everyone got exactly one vote).
-      - Otherwise every player tied at the top dies.
-      - Hunter revenge: any dead player whose CURRENT role is Hunter also
-        kills the player they voted for. Non-recursive: if the Hunter's
-        target is also a Hunter, that second Hunter's vote does NOT fire.
-    """
+    """ONUW vote resolution. If the top count is < 2, no one dies
+    (everyone got exactly one vote); otherwise every player tied at
+    the top dies. Hunter revenge: any dead Hunter also kills their
+    voted target. Non-recursive — a Hunter's victim that is itself a
+    Hunter does NOT fire."""
     counts: dict[str, int] = {}
     for target in state.votes.values():
         counts[target] = counts.get(target, 0) + 1

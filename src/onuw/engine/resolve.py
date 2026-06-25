@@ -5,14 +5,11 @@ from ..types import Role, Team
 def resolve_winners(state: GameState) -> list[Team]:
     """Evaluate win conditions over current_role.
 
-    Adopted rules (standard ONUW):
-      - Village: at least one Werewolf is killed. If no Werewolves are in
-        play at all, Village wins only if nobody dies.
-      - Werewolf team: at least one Werewolf in play AND no Werewolf is
-        killed.
-      - Tanner: solo team. Wins iff Tanner is killed. Co-wins with others.
-      - Minion edge case: when all Werewolves are in the center, the Minion
-        wins iff no non-Minion player dies. (RULE NOTE: easy to flip later.)
+    - Village: a Werewolf is killed; or no WW in play AND nobody dies.
+    - Werewolf team: WW in play AND no WW is killed.
+    - Tanner: solo team, wins iff Tanner is killed. Co-wins allowed.
+    - Minion edge: when all WW are in the center, Minion wins iff no
+      non-Minion player dies.
     """
     all_current = [p.current_role for p in state.players.values()]
     dead_current = [p.current_role for p in state.players.values() if p.is_dead]
